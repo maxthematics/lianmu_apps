@@ -1,0 +1,27 @@
+#CITATION.cff
+
+cff-version: 1.2.0
+title: "LiAnMU/QuaMath Web Applets"
+message: "If you use this repository or one of its applets, please cite it as below."
+type: software
+authors:
+  - family-names: Hoffmann
+    given-names: Max
+    affiliation: "Paderborn University"
+  - family-names: Herrmann
+    given-names: Janine
+    affiliation: "Paderborn University"
+  - family-names: Lomas
+    given-names: Olga
+    affiliation: "Paderborn University"
+  - family-names: Wessel
+    given-names: Lena
+    affiliation: "Paderborn University"
+keywords:
+  - LiAnMU
+  - QuaMath
+  - mathematics education
+  - web applets
+license: "MIT"
+url: "https://github.com/maxthematics/lianmu_apps"
+date-released: 2026-02-19
