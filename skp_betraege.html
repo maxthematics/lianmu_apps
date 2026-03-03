@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Skalarprodukt und Beträge</title>
+
+<!--
+  Skalarprodukt und Beträge (LiAnMU / QuaMath Web Applets)
+  Credits: Max Hoffmann, Janine Herrmann, Olga Lomas & Lena Wessel
+  Context: QuaMath (DZLM + IPN, funded by KMK) | LiAnMU | Paderborn University
+  Version: v2026-02-19
+  License: MIT (see LICENSE)
+  Source: <REPO-URL>
+-->    
+
+    <!-- ============================================================
+         CSS: Canvas fills the entire browser window, no scrolling
+         ============================================================ -->
+    <style>
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+#CSCanvas {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+}
+    </style>
+
+    <style type="text/css">
+        * {
+            margin: 0px;
+            padding: 0px;
+        }
+
+        /* CindyJS console (only visible during debugging, hidden by default) */
+        #CSConsole {
+            background-color: #FAFAFA;
+            border-top: 1px solid #333333;
+            bottom: 0px;
+            height: 200px;
+            overflow-y: scroll;
+            position: fixed;
+            width: 100%;
+        }
+    </style>
+
+    <link rel="stylesheet" href="https://cindyjs.org/dist/v0.8/CindyJS.css">
+    <script type="text/javascript" src="https://cindyjs.org/dist/v0.8/Cindy.js"></script>
+
+
+    <!-- ============================================================
+         CSINIT: One-time initialization on startup
+         Contains: helper functions, color palette, drawing functions,
+                   initial variable values
+         ============================================================ -->
+    <script id="csinit" type="text/x-cindyscript">
+
+// ------------------------------------------------------------
+// Helper: perpendicular unit vector (rotated 90°, normalized)
+// ------------------------------------------------------------
+perpVec(v) := [-v.y, v.x] / |v|;
+
+
+// ------------------------------------------------------------
+// Color palette (all values normalized to 0.0–1.0)
+// Primary:   Petrol
+// Secondary: Orange, Gray
+// Tertiary:  Wine Red
+// Context:   Ochre
+// ------------------------------------------------------------
+
+white = [1, 1, 1];
+
+// Petrol (primary color)
+petrol100 = [50, 122, 134] / 255;
+petrol75  = [114, 143, 153] / 255;
+petrol50  = [152, 171, 178] / 255;
+petrol25  = [192, 202, 206] / 255;
+petrol10  = [212, 219, 222] / 255;
+petrol = petrol100;
+
+// Orange (secondary color, used for angle α)
+orange100 = [248, 180, 79] / 255;
+orange75  = [242, 184, 107] / 255;
+orange50  = [246, 201, 141] / 255;
+orange25  = [249, 221, 182] / 255;
+orange10  = [253, 245, 233] / 255;
+orange = orange100;
+
+// Wine Red (tertiary color, used for point B and edit mode indicators)
+wineRed100 = [164, 65, 104] / 255;
+wineRed75  = [162, 93, 117] / 255;
+wineRed50  = [182, 128, 146] / 255;
+wineRed25  = [202, 162, 174] / 255;
+wineRed10  = [227, 206, 213] / 255;
+wineRed = wineRed100;
+
+// Gray (secondary color, used for credits and unit segment)
+gray100 = [115, 115, 115] / 255;
+gray75  = [135, 136, 136] / 255;
+gray50  = [164, 166, 166] / 255;
+gray25  = [227, 228, 228] / 255;
+gray10  = [239, 239, 239] / 255;
+gray = gray100;
+
+// Ochre (context color, used for UI buttons)
+ochre100 = [205, 185, 135] / 255;
+ochre75  = [201, 188, 157] / 255;
+ochre50  = [214, 204, 179] / 255;
+ochre25  = [227, 221, 203] / 255;
+ochre10  = [241, 238, 227] / 255;
+ochre = ochre100;
+
+// Special colors for task types (currently unused)
+taskTeachers  = [204, 222, 225] / 255;
+taskStudents  = [253, 236, 211] / 255;
+taskMaterials = [225, 213, 183] / 255;
+
+
+// ------------------------------------------------------------
+// Vector arrow drawing functions
+// vecSettings = [labelOffset, shaftThickness, arrowhead width, arrowhead height]
+//   _1: label distance from shaft (px, positive = left, negative = right)
+//   _2: half shaft width (in coordinate units)
+//   _3: multiplier for full arrowhead width (relative to 2 * shaft width)
+//   _4: multiplier for arrowhead height (relative to 2 * shaft width)
+// ------------------------------------------------------------
+vecColor     = petrol;
+vecLabelSize = 20;
+
+vecSettingsL = [20,  0.05, 4, 4.0];   // label to the left of the shaft
+vecSettingsR = [-30, 0.05, 4, 4.0];   // label to the right of the shaft
+
+// Draw label centered along the shaft, offset perpendicularly
+veclabel(start, end, name, settings) := (
+    regional(lab, v, p, pos, sep, thick);
+    sep   = settings_1;
+    thick = settings_2;
+    lab   = "$\vec{" + name + "}$";
+    v     = end - start;
+    p     = perpVec(v);
+    pos   = 0.5 * (start + end) + (sep / screenresolution() + thick) * p;
+    drawtext(pos, lab, color -> vecColor, size -> vecLabelSize);
+);
+
+// Draw filled arrow from A to B with label
+drawArrow(A, B, name, settings) := (
+    regional(v, u, p, sThick, hWidthFact, hHeightFact, hHalfWidth, hHeight, base, hPoly, sPoly);
+    sThick      = settings_2;
+    hWidthFact  = settings_3;
+    hHeightFact = settings_4;
+    v = B - A;
+    if (|v| > 10^(-5),
+        u = v / |v|;
+        p = perpVec(v);
+        hHalfWidth = sThick * hWidthFact;
+        hHeight    = (2 * sThick) * hHeightFact;
+        base       = B - hHeight * u;
+        hPoly = polygon((B, base + p * hHalfWidth, base - p * hHalfWidth));
+        sPoly = polygon((A + p * sThick, A - p * sThick, base - p * sThick, base + p * sThick));
+        fill(hPoly, color -> vecColor);
+        fill(sPoly, color -> vecColor);
+        veclabel(A, B, name, settings);
+    );
+);
+
+
+// ------------------------------------------------------------
+// Angle drawing (filled arc between two directions)
+// Parameters:
+//   P1, P2   – two points defining the angle legs
+//   C        – vertex of the angle
+//   r        – arc radius (in coordinate units)
+//   col      – color
+//   alpha    – fill opacity (0 = no fill)
+//   label    – LaTeX label (or "VAL" for numeric value)
+//   labelPos – label distance factor (1.0 = on the arc)
+//   labelCol – label color
+// ------------------------------------------------------------
+angLabelSize = 20;
+angArcSize   = 2;
+
+drawAngle(P1, P2, C, r, col, alpha, label, labelPos, labelCol) := (
+    regional(a1, a2, sweep, arcRes, arcPoints, labelPt, labelDir);
+    a1    = arctan2(P1 - C);
+    sweep = arccos((P1 - C) * (P2 - C) / (|P1 - C| * |P2 - C|));
+    a2    = a1 + sweep;
+    if(sweep > 1° & r > 0.01,
+        arcRes    = max(5, round(sweep * 30));
+        arcPoints = [C];
+        repeat(arcRes, start -> a1, stop -> a2, a,
+            arcPoints = arcPoints ++ [gauss(exp(i * a) * r * 25 / screenresolution()) + C]
+        );
+        arcPoints = arcPoints ++ [C.xy];
+        if(alpha > 0,
+            fillpoly(arcPoints, color -> col * (1 - alpha) + (1, 1, 1) * alpha)
+        );
+        connect(arcPoints, size -> angArcSize, border -> false, color -> col);
+        labelDir = gauss(exp(i * (a1 + a2) / 2));
+        labelPt  = C + labelDir * (labelPos * r * 25 / screenresolution()) + (0, -0.1);
+        if(label == "VAL",
+            drawtext(labelPt, (a2 - a1), align -> "center", tex -> true, color -> labelCol),
+            drawtext(labelPt, "$" + label + "$",
+                align -> "center", tex -> true, color -> labelCol, size -> angLabelSize)
+        );
+    );
+);
+
+
+// ------------------------------------------------------------
+// Clamp B back into the visible area
+// Called after α changes. If B is still on screen: no change.
+// If B is outside: B is moved to where the B0 ray intersects
+// the inset screen boundary.
+// ------------------------------------------------------------
+margin = 0.7;
+
+clampBToScreen() := (
+    regional(dx, dy, tmax, xlo, xhi, ylo, yhi);
+    xlo = xmin + margin;  xhi = xmax - margin;
+    ylo = ymin + margin;  yhi = ymax - margin;
+    if(B.x < xlo % B.x > xhi % B.y < ylo % B.y > yhi,
+        dx = B0.x;  dy = B0.y;
+        tmax = 10000;
+        if(|dx| > 0.0001,
+            if(dx > 0, tmax = min(tmax, (xhi - O.x) / dx),
+                       tmax = min(tmax, (xlo - O.x) / dx))
+        );
+        if(|dy| > 0.0001,
+            if(dy > 0, tmax = min(tmax, (yhi - O.y) / dy),
+                       tmax = min(tmax, (ylo - O.y) / dy))
+        );
+        B.xy = O.xy + tmax * [dx, dy];
+    );
+);
+
+
+// ------------------------------------------------------------
+// Draw the ray for B (dashed, from O in direction B0)
+// C is set as the far endpoint of the ray
+// ------------------------------------------------------------
+adjustBRay() := (
+    bounds = screenbounds();
+    diag   = |bounds_4, bounds_2|;
+    C.xy   = O + diag * (B0.xy - O);
+    if(!editmode,
+    draw(O, C, size -> 3, color -> wineRed, dashtype -> 3));
+);
+
+
+// ------------------------------------------------------------
+// Main drawing function: angle α and arrows a, b
+// Draw order: angle first (bottom layer), then both arrows on top
+// Guard: if |A| ≈ 0, only b is drawn (prevents division by zero)
+// ------------------------------------------------------------
+drawVecsWithAngle() := (
+    if(|A - O| > 0.0001,
+        A0.xy  = A / |A|;
+        angleA = arctan2(A - O);   // arctan2 instead of arccos: works correctly in all quadrants
+        angleB = angleA + angleDiff;
+        B0.xy  = O + (cos(angleB), sin(angleB));
+        drawAngle(A0, B0, O,
+            min(4, 4 * .5 * |B.xy - O| / |B0.xy - O|),
+            orange, .9, "\alpha", .7, orange);
+    );
+    drawArrow(O, B, "b", vecSettingsL);
+    if(|A - O| > 0.0001,
+        drawArrow(O, A, "a", vecSettingsR);
+    );
+);
+
+
+// ------------------------------------------------------------
+// Initial values
+// ------------------------------------------------------------
+O.xy  = [0, 0];
+A.xy  = [4, 2];
+A0.xy = A / |A|;
+
+// Initial angle: 30° (= 30/180 = 1/6 of slider range)
+angleDiff = 30°;
+
+// Slider for α: start and end points (updated each frame in csdraw)
+slAngS    = [xmin + 0.95 * (xmax - xmin), ymin + 0.2 * (ymax - ymin)];
+slAngE    = [xmin + 0.95 * (xmax - xmin), ymin + 0.8 * (ymax - ymin)];
+slAngP.xy = slAngS.xy + (angleDiff / 180°) * (slAngE.xy - slAngS.xy);
+
+// Point appearance
+B.color    = wineRed;
+B.labelled = false;
+A.color    = wineRed;
+A.size     = 10;
+A.labelled = false;
+
+// Initial state: normal mode (no editing)
+editmode     = false;
+btED.pressed = false;
+
+// Orientation tracking: used to detect layout switches and
+// reposition the slider so angleDiff is preserved across rotations
+wasPortrait = false;
+
+resetclock();
+playAnimation();
+
+    </script>
+
+
+    <!-- ============================================================
+         CSMOVE: Called on every animation frame
+         Contains: pulsing of B, computation of display text strings
+         ============================================================ -->
+    <script id="csmove" type="text/x-cindyscript">
+
+// B pulses in normal mode; fixed size in edit mode
+if(!editmode,
+    B.size = 5 + 3.2 * sin(4 * seconds())^2,
+    B.size = 5
+);
+
+// Dot product text (exact or rounded)
+roundedSkpAB = round(100 * A * B) / 100;
+tSkp = if(|roundedSkpAB - A * B| < 0.0001,
+    "$\vec a \bullet \vec b = "       + roundedSkpAB + "$",
+    "$\vec a \bullet \vec b \approx " + roundedSkpAB + "$"
+);
+
+
+// Component representations of a and b
+roundedAx = round(100 * A.x) / 100;
+roundedAy = round(100 * A.y) / 100;
+tVecA = "$\vec a "
+    + if(|roundedAx - A.x| < 0.0001 & |roundedAy - A.y| < 0.005, "=", "\approx")
+    + " \begin{pmatrix} " + roundedAx + " \\ " + roundedAy + " \end{pmatrix}$";
+
+roundedBx = round(100 * B.x) / 100;
+roundedBy = round(100 * B.y) / 100;
+tVecB = "$\vec b "
+    + if(|roundedBx - B.x| < 0.0001 & |roundedBy - B.y| < 0.005, "=", "\approx")
+    + " \begin{pmatrix} " + roundedBx + " \\ " + roundedBy + " \end{pmatrix}$";
+
+    </script>
+
+
+    <!-- ============================================================
+         CSDRAW: Called every frame
+         Contains: bounds, layout mode, button, slider, vectors, texts
+         ============================================================ -->
+    <script id="csdraw" type="text/x-cindyscript">
+
+// ------------------------------------------------------------
+// Set bounds first (required by all UI element positioning)
+// ------------------------------------------------------------
+bounds = screenbounds();
+xmin   = bounds_1_1;
+xmax   = bounds_2_1;
+ymin   = bounds_3_2;
+ymax   = bounds_1_2;
+width  = xmax - xmin;
+height = ymax - ymin;
+
+// ------------------------------------------------------------
+// Responsive layout mode
+// isPortrait = true on phones and tablets held vertically
+// isPortrait = false on laptops and landscape tablets
+// ------------------------------------------------------------
+isPortrait = height > width;
+
+// ------------------------------------------------------------
+// Orientation change detection:
+// When the layout flips, reposition slAngP so that angleDiff
+// is preserved — the slider moves to the correct position
+// on the new axis without changing the displayed angle.
+// Portrait bottom zones (px from bottom, stacked upward):
+//   browserBarPx → credits → sliderZone → hintZone
+// ------------------------------------------------------------
+browserBarPx = 110;   // Safari iPhone bottom UI bar
+credPx       = 65;    // 3 credit lines + padding
+sliderZonePx = 55;    // slider track + label clearance
+hintZonePx   = 75;    // two-line hint box + padding
+
+// Pixel offsets from ymin for each zone center/anchor
+pCred   = browserBarPx;
+pSlider = browserBarPx + credPx;
+pHint   = browserBarPx + credPx + sliderZonePx;
+
+if(isPortrait != wasPortrait,
+    if(!isPortrait,
+        // Switched to landscape: place on vertical slider
+        slAngS = [xmin + 0.9 * width, ymin + 0.2 * height];
+        slAngE = [xmin + 0.9 * width, ymin + 0.8 * height];
+    ,
+        // Switched to portrait: place on horizontal slider
+        slAngS = [xmin + 0.15 * width, ymin + pSlider / screenresolution()];
+        slAngE = [xmin + 0.85 * width, ymin + pSlider / screenresolution()];
+    );
+    slAngP.xy = slAngS.xy + (angleDiff / 180°) * (slAngE.xy - slAngS.xy);
+    wasPortrait = isPortrait;
+);
+
+// ------------------------------------------------------------
+// B interactivity depends on mode:
+// In edit mode B is pinned so the user cannot accidentally
+// drag b while adjusting a or α
+// ------------------------------------------------------------
+B.pinned  = editmode;
+B.visible = !editmode;
+
+// ------------------------------------------------------------
+// Gear button (top right) — same position in both layouts
+// Toggles between normal and edit mode
+// Background: ochre in normal mode, wine red in edit mode
+// ------------------------------------------------------------
+btnPx    = 30;
+btnCoord = btnPx / screenresolution();
+margin   = btnCoord * .6;
+
+editBtnRight  = xmax - margin;
+editBtnLeft   = editBtnRight - btnCoord;
+editBtnTop    = ymax - margin;
+editBtnBottom = editBtnTop - btnCoord;
+rectEdit = [[editBtnLeft, editBtnBottom], [editBtnRight, editBtnBottom],
+            [editBtnRight, editBtnTop],   [editBtnLeft, editBtnTop]];
+
+if(editmode,
+    fillpoly(rectEdit, color -> wineRed10, alpha -> 1);
+);
+
+drawtext(0.5 * ([editBtnLeft, editBtnBottom] + [editBtnRight, editBtnTop]),
+    "⚙", align -> "center", size -> 75, color -> [0, 0, 0], yoffset -> -20);
+
+
+// ------------------------------------------------------------
+// Edit mode hint text
+// Landscape: two lines to the left of the button
+// Portrait:  two lines above the slider at the bottom
+// ------------------------------------------------------------
+if(editmode,
+    if(!isPortrait,
+        topMarginPx = 12;
+        padPx    = 10;
+        lineHpx  = 14;
+        fontHpx  = 10;
+        boxHalfH = (lineHpx + fontHpx + padPx) / screenresolution();
+        hintY     = min(0.5 * (editBtnBottom + editBtnTop),
+                        ymax - topMarginPx / screenresolution() - boxHalfH);
+        txtHalfW  = 220 / screenresolution();
+        hintRight = editBtnLeft - 0.2;
+        hintLeft  = hintRight - 2 * txtHalfW;
+        hintTop   = hintY + boxHalfH;
+        hintBot   = hintY - boxHalfH;
+        fillpoly([[hintLeft, hintBot],[hintRight, hintBot],
+                  [hintRight, hintTop],[hintLeft, hintTop]],
+                  color -> wineRed10);
+        drawpoly([[hintLeft, hintBot],[hintRight, hintBot],
+                  [hintRight, hintTop],[hintLeft, hintTop]],
+                  color -> wineRed100, size -> 1.5);
+        drawtext([hintRight, hintY],
+            "SITUATION BEARBEITEN: Du kannst jetzt",
+            align -> "right", size -> 20, color -> wineRed, yoffset -> 12);
+        drawtext([hintRight, hintY],
+            "den Winkel $\alpha$ und den Endpunkt von $\vec{a}$ anpassen.",
+            align -> "right", size -> 20, color -> wineRed, yoffset -> -12);
+    ,
+        padPx    = 10;
+        lineHpx  = 12;
+        fontHpx  = 8;
+        boxHalfH = (lineHpx + fontHpx + padPx) / screenresolution();
+        // Portrait: hint sits above slider, pixel-based
+        hintY    = ymin + pHint / screenresolution();
+        txtHalfW = 210 / screenresolution();
+        hintCx   = xmin + 0.5 * width;
+        hintTop  = hintY + boxHalfH;
+        hintBot  = hintY - boxHalfH;
+        fillpoly([[hintCx - txtHalfW, hintBot],[hintCx + txtHalfW, hintBot],
+                  [hintCx + txtHalfW, hintTop],[hintCx - txtHalfW, hintTop]],
+                  color -> wineRed10);
+        drawpoly([[hintCx - txtHalfW, hintBot],[hintCx + txtHalfW, hintBot],
+                  [hintCx + txtHalfW, hintTop],[hintCx - txtHalfW, hintTop]],
+                  color -> wineRed100, size -> 1.5);
+        drawtext([hintCx, hintY],
+            "SITUATION BEARBEITEN: Du kannst jetzt",
+            align -> "center", size -> 16, color -> wineRed, yoffset -> 12);
+        drawtext([hintCx, hintY],
+            "den Winkel $\alpha$ und den Endpunkt von $\vec{a}$ anpassen.",
+            align -> "center", size -> 16, color -> wineRed, yoffset -> -12);
+    );
+);
+
+// ------------------------------------------------------------
+// Visibility of editable elements
+// ------------------------------------------------------------
+A.visible      = editmode;
+slAngP.visible = editmode;
+
+// ------------------------------------------------------------
+// Slider for α
+// Landscape: vertical bar on the right side (10% from right edge)
+// Portrait:  horizontal bar near the bottom (13% from bottom)
+// Range in both cases: 0° to 180°, snaps to 45°, 90°, 135°
+// The projection formula works for any slider orientation.
+// ------------------------------------------------------------
+if(!isPortrait,
+    // Landscape: vertical slider on the right
+    slAngS = [xmin + 0.9 * width, ymin + 0.2 * height];
+    slAngE = [xmin + 0.9 * width, ymin + 0.8 * height];
+,
+    // Portrait: horizontal slider, pixel-based position above credits
+    slAngS = [xmin + 0.15 * width, ymin + pSlider / screenresolution()];
+    slAngE = [xmin + 0.85 * width, ymin + pSlider / screenresolution()];
+);
+slAngP.color = orange;
+
+if(editmode,
+    draw(slAngS, slAngE, color -> orange, size -> 8);
+    slAngP.size = 12;   // larger touch target on mobile
+    if(!isPortrait,
+        // Landscape: labels above/below the vertical slider ends
+        drawtext(slAngS, "0°",   yoffset -> -25, color -> orange, size -> 24, align -> "center");
+        drawtext(slAngE, "180°", yoffset ->  20, color -> orange, size -> 24, align -> "center");
+    ,
+        // Portrait: labels to left/right of the horizontal slider
+        drawtext(slAngS, "0°",   xoffset -> -8, color -> orange, size -> 22, align -> "right");
+        drawtext(slAngE, "180°", xoffset ->  8, color -> orange, size -> 22, align -> "left");
+    );
+);
+
+// Compute slider value (0.0 to 1.0) via projection onto slider direction
+slAngVal = ((slAngP.xy - slAngS.xy) * (slAngE.xy - slAngS.xy)) / |slAngE.xy - slAngS.xy|^2;
+slAngVal = max(0, min(1, slAngVal));
+
+snapVals   = [0.25, 0.5, 0.75];    // corresponding to 45°, 90°, 135°
+snapRadius = 0.04;
+forall(snapVals, s,
+    if(|slAngVal - s| < snapRadius, slAngVal = s);
+);
+
+slAngP.xy = slAngS.xy + slAngVal * (slAngE.xy - slAngS.xy);
+angleDiff = slAngVal * 180°;
+
+// ------------------------------------------------------------
+// Main drawing: ray, vectors, clamp
+// ------------------------------------------------------------
+adjustBRay();
+drawVecsWithAngle();
+clampBToScreen();
+
+// ------------------------------------------------------------
+// Text overlays: dot product at B, components top-left
+// Portrait: two separate lines with smaller font
+// Landscape: single line
+// ------------------------------------------------------------
+if(!editmode, drawtext(B, tSkp, xoffset -> 20, yoffset -> -20, size -> if(isPortrait, 30, 24)));
+
+vecValTextPos = screenbounds()_1;
+if(!isPortrait,
+    drawtext(vecValTextPos, tVecA  + if(!editmode, ",    " +tVecB,""),
+        size -> 30, color -> petrol, xoffset -> 50, yoffset -> -100);
+,
+    drawtext(vecValTextPos, tVecA,
+        size -> 32, color -> petrol, xoffset -> 30, yoffset -> -95);
+    if(!editmode, drawtext(vecValTextPos, tVecB,
+        size -> 32, color -> petrol, xoffset -> 30, yoffset -> -185));
+);
+
+// ------------------------------------------------------------
+// Credits (bottom right) — all positions pixel-based from bottom
+// ------------------------------------------------------------
+rightEdge = xmax - 0.1;
+
+if(!isPortrait,
+    credY = ymin + 12 / screenresolution();
+    drawtext([rightEdge, credY], "max.hoffmann@math.uni-paderborn.de  |  v2026-02-19  |  MIT License",
+        size -> 14, color -> gray75, align -> "right", yoffset -> 0);
+    drawtext([rightEdge, credY], "QuaMath (DZLM + IPN, gef. v. KMK)  |  LiAnMU  |  Universität Paderborn",
+        size -> 14, color -> gray75, align -> "right", yoffset -> 24);
+    drawtext([rightEdge, credY], "Max Hoffmann, Janine Herrmann, Olga Lomas & Lena Wessel",
+        size -> 14, color -> gray75, align -> "right", yoffset -> 48);
+,
+    // Portrait: credits sit in the lowest zone above browser bar
+    credY = ymin + pCred / screenresolution();
+    drawtext([rightEdge, credY], "max.hoffmann@math.uni-paderborn.de  |  v2026-02-19  |  MIT License",
+        size -> 11, color -> gray75, align -> "right", yoffset -> 0);
+    drawtext([rightEdge, credY], "QuaMath (DZLM + IPN, gef. v. KMK)  |  LiAnMU  |  Uni Paderborn",
+        size -> 11, color -> gray75, align -> "right", yoffset -> 19);
+    drawtext([rightEdge, credY], "Max Hoffmann, Janine Herrmann, Olga Lomas & Lena Wessel",
+        size -> 11, color -> gray75, align -> "right", yoffset -> 38);
+);
+
+// ------------------------------------------------------------
+// Unit segment (bottom left corner)
+// ------------------------------------------------------------
+unitX = ceil(xmin) + 0.5;
+if(!isPortrait,
+    unitY = ymin + 12 / screenresolution();
+,
+    unitY = ymin + pCred / screenresolution();
+);
+draw([unitX, unitY], [unitX + 1, unitY], color -> gray, size -> 5);
+drawtext([unitX + 0.5, unitY], "1",
+    yoffset -> 10, color -> gray, size -> 16, align -> "center");
+
+    </script>
+
+
+    <!-- ============================================================
+         CSMOUSEDOWN: Click on gear button → toggle mode
+         ============================================================ -->
+    <script id="csmousedown" type="text/x-cindyscript">
+if(mouse().x > editBtnLeft & mouse().x < editBtnRight &
+   mouse().y > editBtnBottom & mouse().y < editBtnTop,
+    editmode = !editmode;
+);
+    </script>
+
+
+    <!-- ============================================================
+         CindyJS initialization
+         Geometry objects and viewport configuration
+         ============================================================ -->
+    <script type="text/javascript">
+var cdy = CindyJS({
+    scripts: "cs*",
+    defaultAppearance: {
+        dimDependent: 0.7,
+        fontFamily:   "sans-serif",
+        lineSize:     1,
+        pointSize:    5.0,
+        textsize:     12.0
+    },
+    angleUnit: "°",
+    geometry: [
+        // Origin (pinned, invisible)
+        {name: "O", type: "Free", pos: [0.0, 0.0, 4.0],
+            color: [1.0, 0.0, 0.0], visible: false, pinned: true, labeled: true},
+        // Tip of vector a (draggable in edit mode)
+        {name: "A", type: "Free", pos: [4.0, 0.8, 0.8],
+            dimDependent: 1, color: [0.714, 0.502, 0.573], visible: false},
+        // Unit vector in direction of a (internal, invisible)
+        {name: "A0", type: "Free", pos: [3.92232270276368, 0.7844645405527362, 4.0],
+            color: [1.0, 0.0, 0.0], visible: false, labeled: true},
+        // Auxiliary point (currently unused)
+        {name: "E", type: "Free", pos: [-1.043794578618001, -4.0, -4.154896483361782E-4],
+            color: [1.0, 0.0, 0.0], size: 0.0},
+        // Unit vector in direction of b (internal, invisible)
+        {name: "B0", type: "Free", pos: [2.218800784900914, 3.328201177351376, 4.0],
+            color: [1.0, 0.0, 0.0], visible: false, labeled: true},
+        // Extended endpoint of the b ray (used by adjustBRay)
+        {name: "C", type: "Free", pos: [-2.666666666666662, -4.0, -0.26088765645889556],
+            color: [1.0, 0.0, 0.0], labeled: true},
+        // Ray from O to C (glide path for B, invisible)
+        {name: "bRay", type: "Segment", dimDependent: 1,
+            color: [0.643, 0.255, 0.408], args: ["O", "C"], visible: false, labeled: true, size: 3},
+        // Tip of vector b (lies on bRay, draggable by user)
+        {name: "B", type: "PointOnSegment", pos: [-2.6666666666666616, -4.0, -1.1176160751290611],
+            dimDependent: 1, color: [0.643, 0.255, 0.408], args: ["bRay"], size: 7.015983213640668},
+        // Slider point for α (only visible in edit mode)
+        {name: "slAngP", type: "Free", pos: [4.0, 0.338425786526072, 0.4411103290562929],
+            dimDependent: 1, color: [0.973, 0.706, 0.31], visible: false,
+            labeled: true, textsize: 24.0, size: 10.0, border: false, printname: "$\\alpha$"}
+    ],
+    ports: [{
+        id: "CSCanvas",
+        transform: [{visibleRect: [-6.5, 7.5, 10.5, -2.5]}],
+        grid: 0.5,
+        snap: true,
+        background: "rgb(255,255,255)"
+    }],
+    csconsole: false,
+    use: ["katex"],
+    cinderella: {build: 2124, version: [3, 0, 2124]}
+});
+    </script>
+</head>
+<body>
+    <div id="CSCanvas"></div>
+</body>
+</html>
