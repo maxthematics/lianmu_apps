@@ -1,0 +1,1153 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Skalarprodukt und Beträge</title>
+
+<!--
+  Skalarprodukt und Beträge (LiAnMU / QuaMath Web Applets)
+  Authors: Max Hoffmann, Janine Herrmann, Olga Lomas & Lena Wessel
+  Context: QuaMath (DZLM + IPN, funded by KMK) | LiAnMU | Paderborn University
+  Version: v2026-05-19
+  License: MIT (see LICENSE)
+-->
+
+<!-- ===========================================================
+     CSS: canvas fills the entire viewport, no scrolling
+     =========================================================== -->
+<style>
+  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
+  /* 100dvh = dynamic viewport height; on mobile Safari/Chrome this
+     excludes the bottom UI bar automatically. Older browsers fall
+     back to 100vh and the canvas may sit behind the bar. */
+  #CSCanvas  { position: fixed; inset: 0; width: 100vw; height: 100vh; height: 100dvh; }
+  *          { margin: 0; padding: 0; }
+  #CSConsole {
+    background-color: #FAFAFA; border-top: 1px solid #333;
+    bottom: 0; height: 200px; overflow-y: scroll;
+    position: fixed; width: 100%;
+  }
+</style>
+
+<link rel="stylesheet" href="https://cindyjs.org/dist/v0.8/CindyJS.css">
+<script type="text/javascript" src="https://cindyjs.org/dist/v0.8/Cindy.js"></script>
+
+
+<!-- ===========================================================
+     CSINIT — one-time initialization
+     =========================================================== -->
+<script id="csinit" type="text/x-cindyscript">
+
+// ════════════════════════════════════════════════════════════════
+// APPLET CONFIG — edit per applet
+// ════════════════════════════════════════════════════════════════
+appletTitle        = "Skalarprodukt und Winkel";
+appletAuthors      = "Max Hoffmann, Janine Herrmann, Olga Lomas & Lena Wessel";
+appletAffiliations = "QuaMath (DZLM + IPN, gef. v. KMK) | LiAnMU | Universität Paderborn";
+appletContact      = "max.hoffmann@math.uni-paderborn.de";
+appletVersion      = "v2026-05-19";
+appletLicense      = "MIT License";
+
+
+// ════════════════════════════════════════════════════════════════
+// PLATFORM SECTION — shared framework, identical across applets
+// Do not edit unless you are updating the framework.
+// ════════════════════════════════════════════════════════════════
+
+// ----------------------------------------------------------------
+// Color palette (RGB, normalized to 0.0–1.0)
+// Primary: Petrol | Secondary: Orange, Gray | Tertiary: Wine Red
+// Context: Ochre
+// ----------------------------------------------------------------
+white = [1, 1, 1];
+
+petrol100 = [50, 122, 134] / 255;
+petrol75  = [114, 143, 153] / 255;
+petrol50  = [152, 171, 178] / 255;
+petrol25  = [192, 202, 206] / 255;
+petrol10  = [212, 219, 222] / 255;
+petrol    = petrol100;
+
+orange100 = [248, 180, 79]  / 255;
+orange75  = [242, 184, 107] / 255;
+orange50  = [246, 201, 141] / 255;
+orange25  = [249, 221, 182] / 255;
+orange10  = [253, 245, 233] / 255;
+orange    = orange100;
+
+wineRed100 = [164, 65, 104]  / 255;
+wineRed75  = [162, 93, 117]  / 255;
+wineRed50  = [182, 128, 146] / 255;
+wineRed25  = [202, 162, 174] / 255;
+wineRed10  = [227, 206, 213] / 255;
+wineRed    = wineRed100;
+
+gray100 = [115, 115, 115] / 255;
+gray75  = [135, 136, 136] / 255;
+gray50  = [164, 166, 166] / 255;
+gray25  = [227, 228, 228] / 255;
+gray10  = [239, 239, 239] / 255;
+gray    = gray100;
+
+ochre100 = [205, 185, 135] / 255;
+ochre75  = [201, 188, 157] / 255;
+ochre50  = [214, 204, 179] / 255;
+ochre25  = [227, 221, 203] / 255;
+ochre10  = [241, 238, 227] / 255;
+ochre    = ochre100;
+
+// ----------------------------------------------------------------
+// Concept colors — semantic palette for mathematical objects.
+// Per-applet overrides allowed in the APPLET LOGIC section.
+// ----------------------------------------------------------------
+colorVector = petrol100;   // arrows, vector labels, components
+colorPoint  = wineRed100;  // free / movable points
+colorScalar = gray100;     // numeric scalars, lengths, dot products
+colorAngle  = orange100;   // angle arcs and labels
+colorLine   = gray75;      // lines, rays, segments
+colorAccent = wineRed100;  // highlights, edit-mode chrome
+colorChrome = gray100;      // titles, credits, neutral UI text
+
+// ----------------------------------------------------------------
+// Coordinate grid. The framework draws the grid itself (drawGrid),
+// so its colour is fully configurable here. The port's `grid` value
+// still drives drag-snapping and should match gridSpacing.
+//   gridColor : line colour, 0 = black … 1 = white.
+//               higher = fainter, lower = stronger.
+// ----------------------------------------------------------------
+gridColor   = [0.80, 0.81, 0.81];   // ≈ 20% gray, a touch stronger than CindyJS' faint default
+gridSpacing = 0.5;                  // world units between grid lines (match the port `grid`)
+gridWidth   = 1;                    // line width in px
+
+// ----------------------------------------------------------------
+// Typography (point sizes). Each role: landscape / portrait.
+// Mobile sizes are ≥ landscape: a phone is held closer, but physical
+// readability still requires equal or larger glyphs, never smaller.
+// Applets may override locally if the visual hierarchy demands it
+// (see fsSkp / fsComps in this applet's csdraw).
+// ----------------------------------------------------------------
+fontTitle     = 24;   fontTitleP     = 26;
+fontStatus    = 18;   fontStatusP    = 18;
+fontCredits   = 13;   fontCreditsP   = 12;
+fontMathBig   = 28;   fontMathBigP   = 32;   // main displayed quantity
+fontMathMed   = 22;   fontMathMedP   = 26;   // secondary labels
+fontMathSmall = 16;   fontMathSmallP = 18;   // helper labels
+
+// ----------------------------------------------------------------
+// Layout pixel budget. All anchors derive from these constants.
+// Suffix P denotes portrait variant.
+// ----------------------------------------------------------------
+layoutOuterPad     = 16;   layoutOuterPadP     = 10;
+layoutHeaderHpx    = 56;   layoutHeaderHpxP    = 48;
+layoutFooterHpx    = 60;   layoutFooterHpxP    = 56;   // status OR credits
+layoutUnitHpx      = 26;   layoutUnitHpxP      = 24;   // unit-segment row
+layoutGapPx        = 8;    layoutGapPxP        = 6;
+layoutBrowserBarPx = 0;    layoutBrowserBarPxP = 0;    // handled by 100dvh CSS
+layoutSidebarWpx   = 90;                               // landscape: default width
+layoutSidebarHpx   = 64;                               // portrait:  default height
+layoutSidebarMinWpx = 60;  layoutSidebarMinHpx = 50;   // framework minima
+layoutSidebarMaxWpx = 240; layoutSidebarMaxHpx = 200;  // framework maxima
+layoutSidebarMaxFrac = 0.35;                           // never larger than this
+                                                       // fraction of the outer rect
+layoutCogBtnPx     = 40;   layoutCogBtnPxP     = 36;
+
+// ----------------------------------------------------------------
+// Per-frame UI state
+// ----------------------------------------------------------------
+// The sidebar follows the cog (= editmode) by default. To override,
+// set sidebarFollowsEditmode = false and manage sidebarVisible
+// manually in csdraw before calling platformBeginFrame().
+sidebarFollowsEditmode = true;
+sidebarVisible         = false;
+
+// Sidebar content size request (in pixels). The framework clamps to
+// [layoutSidebarMin…, layoutSidebarMax…] and to layoutSidebarMaxFrac
+// of the outer rect. Set per applet in csinit, or per frame in csdraw
+// before platformBeginFrame() to make the sidebar grow with content.
+sidebarWantedWpx = layoutSidebarWpx;
+sidebarWantedHpx = layoutSidebarHpx;
+
+// Status state — empty statusLines means: show credits in the footer row.
+statusLines  = [];
+statusFg     = wineRed100;
+statusBorder = wineRed100;
+statusFill   = wineRed10;
+
+// ----------------------------------------------------------------
+// Status API
+// Built-in modes: "hint" (petrol), "alert" (wineRed),
+//                 "info" (gray), "success" (ochre).
+// Use setStatusCustom() to pick colors directly.
+// `lines` must be a list of strings (one entry per visual line).
+// ----------------------------------------------------------------
+setStatus(lines, mode) := (
+  statusLines = lines;
+  if(mode == "hint",
+    statusFg     = petrol100;
+    statusBorder = petrol100;
+    statusFill   = petrol10;
+  );
+  if(mode == "alert",
+    statusFg     = wineRed100;
+    statusBorder = wineRed100;
+    statusFill   = wineRed10;
+  );
+  if(mode == "info",
+    statusFg     = gray100;
+    statusBorder = gray75;
+    statusFill   = gray10;
+  );
+  if(mode == "success",
+    statusFg     = ochre100;
+    statusBorder = ochre100;
+    statusFill   = ochre10;
+  );
+);
+
+setStatusCustom(lines, fg, border, fill) := (
+  statusLines  = lines;
+  statusFg     = fg;
+  statusBorder = border;
+  statusFill   = fill;
+);
+
+clearStatus() := ( statusLines = []; );
+
+// ----------------------------------------------------------------
+// Anchor computation. Call once at the top of csdraw, then read
+// the ax* globals from every drawing function.
+//
+// Layout (top to bottom):
+//   ┌───────────────────────────────────┐
+//   │ TITLE                       ⚙     │  header
+//   ├───────────────────────────────────┤
+//   │           CONTENT                 │  content
+//   │                  ┌────────┐       │
+//   │                  │sidebar │       │  sidebar (dynamic)
+//   │ unit ─                            │  unit row
+//   │ STATUS  *or*  credits             │  footer
+//   └───────────────────────────────────┘
+// ----------------------------------------------------------------
+computeAnchors() := (
+  regional(b, sr, oPad, hH, fH, uH, gap, bbPx, sbW, sbH, cogPx, cogHalf);
+
+  b      = screenbounds();
+  xmin   = b_1_1;  xmax = b_2_1;
+  ymin   = b_3_2;  ymax = b_1_2;
+  width  = xmax - xmin;
+  height = ymax - ymin;
+  sr     = screenresolution();
+  isPortrait = height > width;
+
+  oPad = if(isPortrait, layoutOuterPadP,     layoutOuterPad)     / sr;
+  hH   = if(isPortrait, layoutHeaderHpxP,    layoutHeaderHpx)    / sr;
+  fH   = if(isPortrait, layoutFooterHpxP,    layoutFooterHpx)    / sr;
+  uH   = if(isPortrait, layoutUnitHpxP,      layoutUnitHpx)      / sr;
+  gap  = if(isPortrait, layoutGapPxP,        layoutGapPx)        / sr;
+  bbPx = if(isPortrait, layoutBrowserBarPxP, layoutBrowserBarPx) / sr;
+  // Clamp the requested sidebar size to framework min/max and to
+  // a fraction of the outer rectangle. Done before axLeft etc. are
+  // used by the sidebar branches below.
+  sbW = max(layoutSidebarMinWpx,
+            min(sidebarWantedWpx,
+                min(layoutSidebarMaxWpx,
+                    layoutSidebarMaxFrac * (xmax - xmin) * sr))) / sr;
+  sbH = max(layoutSidebarMinHpx,
+            min(sidebarWantedHpx,
+                min(layoutSidebarMaxHpx,
+                    layoutSidebarMaxFrac * (ymax - ymin) * sr))) / sr;
+
+  // Outer rectangle (inside outer padding)
+  axLeft   = xmin + oPad;
+  axRight  = xmax - oPad;
+  axTop    = ymax - oPad;
+  axBottom = ymin + bbPx + oPad;
+
+  // Header (title left, cog right)
+  axHeaderTop    = axTop;
+  axHeaderBottom = axTop - hH;
+  axHeaderCy     = 0.5 * (axHeaderTop + axHeaderBottom);
+  axTitleLeft    = axLeft;
+  axTitleCy      = axHeaderCy;
+
+  // Cog button (square hitbox, right-aligned in header)
+  cogPx   = if(isPortrait, layoutCogBtnPxP, layoutCogBtnPx);
+  cogHalf = cogPx / 2 / sr;
+  axCogCx    = axRight - cogHalf;
+  axCogCy    = axHeaderCy;
+  axCogLeft  = axCogCx - cogHalf;
+  axCogRight = axCogCx + cogHalf;
+  axCogTop   = axCogCy + cogHalf;
+  axCogBot   = axCogCy - cogHalf;
+
+  // Footer (status box OR credits, never both)
+  axFooterTop   = axBottom + fH;
+  axFooterBot   = axBottom;
+  axFooterCy    = 0.5 * (axFooterTop + axFooterBot);
+  axFooterLeft  = axLeft;
+  axFooterRight = axRight;
+
+  // Unit row (directly above footer)
+  axUnitBot  = axFooterTop + gap;
+  axUnitTop  = axUnitBot + uH;
+  axUnitCy   = 0.5 * (axUnitTop + axUnitBot);
+  axUnitLeft = axLeft;
+
+  // Content + sidebar — orientation- and visibility-dependent
+  axContentTop  = axHeaderBottom - gap;
+  axContentLeft = axLeft;
+
+  if(isPortrait,
+    axSidebarLeft  = axLeft;
+    axSidebarRight = axRight;
+    if(sidebarVisible,
+      axSidebarBot    = axUnitTop + gap;
+      axSidebarTop    = axSidebarBot + sbH;
+      axContentRight  = axRight;
+      axContentBottom = axSidebarTop + gap;
+    ,
+      axSidebarBot    = axUnitTop;
+      axSidebarTop    = axUnitTop;   // degenerate (height 0)
+      axContentRight  = axRight;
+      axContentBottom = axUnitTop + gap;
+    );
+  ,
+    axSidebarTop = axContentTop;
+    axSidebarBot = axUnitTop + gap;
+    if(sidebarVisible,
+      axSidebarRight  = axRight;
+      axSidebarLeft   = axRight - sbW;
+      axContentRight  = axSidebarLeft - gap;
+      axContentBottom = axUnitTop + gap;
+    ,
+      axSidebarLeft   = axRight;
+      axSidebarRight  = axRight;       // degenerate (width 0)
+      axContentRight  = axRight;
+      axContentBottom = axUnitTop + gap;
+    );
+  );
+
+  axContentCx = 0.5 * (axContentLeft + axContentRight);
+  axContentCy = 0.5 * (axContentTop  + axContentBottom);
+);
+
+// ----------------------------------------------------------------
+// Sidebar local coordinate system
+//
+// Inside drawSidebar(), use these helpers to position content with
+// (0, 0) at the bottom-left corner of the sidebar, measured in
+// pixels. The framework clamps the sidebar size based on
+// sidebarWantedWpx / sidebarWantedHpx, so use sbWidthPx() /
+// sbHeightPx() to size things relative to the actual sidebar.
+// ----------------------------------------------------------------
+sb(px, py)  := [axSidebarLeft + px / screenresolution(),
+                axSidebarBot  + py / screenresolution()];
+sbWidthPx()  := (axSidebarRight - axSidebarLeft) * screenresolution();
+sbHeightPx() := (axSidebarTop   - axSidebarBot)  * screenresolution();
+
+// Applet hook. Override in the APPLET LOGIC section.
+// Called automatically by csdraw whenever sidebarVisible is true.
+drawSidebar() := ( );
+
+// ----------------------------------------------------------------
+// Frame entry point. Call as the first line of csdraw.
+// Syncs sidebarVisible to editmode (when sidebarFollowsEditmode is
+// true) and recomputes all anchors.
+// ----------------------------------------------------------------
+platformBeginFrame() := (
+  if(sidebarFollowsEditmode, sidebarVisible = editmode);
+  computeAnchors();
+  drawGrid();
+);
+
+// ----------------------------------------------------------------
+// Coordinate grid, drawn by the framework (opaque, so its colour is
+// fully controllable — see gridColor). Spans the whole visible region
+// at gridSpacing. CindyJS' built-in grid still renders underneath for
+// snapping but is covered by these lines.
+// ----------------------------------------------------------------
+drawGrid() := (
+  regional(x0, x1, y0, y1, nx, ny);
+  x0 = floor(xmin / gridSpacing) * gridSpacing;
+  x1 = ceil (xmax / gridSpacing) * gridSpacing;
+  y0 = floor(ymin / gridSpacing) * gridSpacing;
+  y1 = ceil (ymax / gridSpacing) * gridSpacing;
+  nx = round((x1 - x0) / gridSpacing);
+  ny = round((y1 - y0) / gridSpacing);
+  repeat(nx + 1, i,
+    draw([x0 + (i - 1) * gridSpacing, y0], [x0 + (i - 1) * gridSpacing, y1],
+         color -> gridColor, size -> gridWidth));
+  repeat(ny + 1, i,
+    draw([x0, y0 + (i - 1) * gridSpacing], [x1, y0 + (i - 1) * gridSpacing],
+         color -> gridColor, size -> gridWidth));
+);
+
+// ----------------------------------------------------------------
+// Label with an exactly-fitting background, measured from the ACTUAL
+// rendered text. pixelsize(text, size -> fs) returns
+// [width, ascent, descent] in px — measured the same way (and with the
+// same anchor) drawtext renders, so it is correct for KaTeX too. The
+// background therefore fits and stays centred at any font size, instead
+// of relying on hand-tuned multipliers.
+//
+//   x, y     – anchor point in world coordinates
+//   halign   – "left" | "center" | "right"
+//   valign   – "top" (y = box top) | "mid" (y = box centre)
+//              | "base" (y = text baseline)
+//   showBg   – true → white background; false → transparent (no box).
+//              Drive this from a per-field flag so an applet can switch
+//              any label's background on/off in one place.
+//   padPx    – uniform padding around the text, px
+//   returns  – the box bottom y (so labels can be stacked)
+// ----------------------------------------------------------------
+drawLabel(x, y, text, fs, textcol, halign, valign, showBg, padPx) := (
+  regional(sr, m, w, asc, desc, ax, ay, l, r, bb, tt);
+  sr  = screenresolution();
+  m   = pixelsize(text, size -> fs);
+  w   = m_1; asc = m_2; desc = m_3;
+  ax  = x + if(halign == "center", -w / (2 * sr),
+           if(halign == "right",   -w / sr, 0));
+  ay  = if(valign == "top", y - (padPx + asc) / sr,
+        if(valign == "mid", y + (desc - asc) / (2 * sr),
+                            y));
+  l   = ax - padPx / sr;
+  r   = ax + (w + padPx) / sr;
+  bb  = ay - (desc + padPx) / sr;
+  tt  = ay + (asc  + padPx) / sr;
+  if(showBg, fillpoly([[l, bb], [r, bb], [r, tt], [l, tt]], color -> white));
+  drawtext([ax, ay], text, size -> fs, color -> textcol, align -> "left");
+  bb
+);
+
+// Backward-compatible wrapper: pos-anchored, vertically centred, always
+// shows a white background. Kept so plain callers keep working while
+// now being measured/adaptive (bgcol is assumed white).
+drawTextWithBg(pos, text, fs, col, bgcol, padPx, alignment) :=
+  drawLabel(pos.x, pos.y, text, fs, col, alignment, "mid", true, padPx);
+
+// ----------------------------------------------------------------
+// Chrome drawing
+// ----------------------------------------------------------------
+
+drawTitle() := (
+  regional(fs);
+  fs = if(isPortrait, fontTitleP, fontTitle);
+  drawLabel(axTitleLeft, axTitleCy, appletTitle,
+            fs, colorChrome, "left", "mid", labelBgTitle, 6);
+);
+
+drawCog() := (
+  regional(sz);
+  // The cog itself signals the mode: wine red while editing,
+  // black otherwise. No background highlight.
+  sz = if(isPortrait, 55, 65);
+  drawtext([axCogCx, axCogCy], "⚙",
+    align   -> "center", size -> sz,
+    color   -> if(editmode, wineRed, [0, 0, 0]),
+    yoffset -> -sz * 0.27);
+);
+
+// Unit segment snapped to the 0.5 grid so both endpoints land on
+// grid intersections and the segment overlaps a horizontal grid line.
+drawUnit() := (
+  regional(uX, uY);
+  uX = ceil(axUnitLeft / 0.5) * 0.5;
+  uY = round(axUnitCy   / 0.5) * 0.5;
+  draw([uX, uY], [uX + 1, uY], color -> gray, size -> 5);
+  drawtext([uX + 0.5, uY], "1",
+    yoffset -> 10, color -> gray, size -> 16,
+    align   -> "center");
+);
+
+drawStatusBox() := (
+  regional(sr, fs, padPx, lineHpx, n, totalH, boxL, boxR, boxT, boxB,
+           cx, cy, i, ypx);
+  sr      = screenresolution();
+  fs      = if(isPortrait, fontStatusP, fontStatus);
+  padPx   = 10;
+  lineHpx = fs * 1.2;
+  n       = length(statusLines);
+  totalH  = (n * lineHpx + 2 * padPx) / sr;
+
+  cx     = 0.5 * (axFooterLeft + axFooterRight);
+  cy     = axFooterCy;
+  boxL   = axFooterLeft  + padPx / sr;
+  boxR   = axFooterRight - padPx / sr;
+  boxT   = cy + totalH / 2;
+  boxB   = cy - totalH / 2;
+  if(boxT > axFooterTop, boxT = axFooterTop);
+  if(boxB < axFooterBot, boxB = axFooterBot);
+
+  fillpoly([[boxL, boxB], [boxR, boxB], [boxR, boxT], [boxL, boxT]],
+           color -> statusFill);
+  drawpoly([[boxL, boxB], [boxR, boxB], [boxR, boxT], [boxL, boxT]],
+           color -> statusBorder, size -> 1.5);
+
+  // All lines anchored at the box center cy; symmetric yoffsets
+  // stack them. The -0.27*fs term shifts the baseline down so the
+  // visual glyph centers (not the baselines) land on the line grid.
+  forall(1..n, i,
+    ypx = (n + 1 - 2 * i) * lineHpx / 2 - 0.27 * fs;
+    drawtext([cx, cy], statusLines_i,
+      align -> "center", size -> fs, color -> statusFg, yoffset -> ypx);
+  );
+);
+
+drawCredits() := (
+  regional(sr, fs, dy, edge);
+  sr   = screenresolution();
+  fs   = if(isPortrait, fontCreditsP, fontCredits);
+  dy   = (fs + 4) / sr;
+  edge = axFooterRight;
+  drawtext([edge, axFooterCy + dy], appletAuthors,
+    size -> fs, color -> colorChrome, align -> "right");
+  drawtext([edge, axFooterCy], appletAffiliations,
+    size -> fs, color -> colorChrome, align -> "right");
+  drawtext([edge, axFooterCy - dy],
+    appletContact + "  |  " + appletVersion + "  |  " + appletLicense,
+    size -> fs, color -> colorChrome, align -> "right");
+);
+
+drawStatusOrCredits() := (
+  if(length(statusLines) > 0,
+    drawStatusBox();
+  ,
+    drawCredits();
+  );
+);
+
+// ----------------------------------------------------------------
+// Math primitives
+// ----------------------------------------------------------------
+
+// Perpendicular unit vector (90° rotation, normalized)
+perpVec(v) := [-v.y, v.x] / |v|;
+
+// Vector arrows -------------------------------------------------
+// vecSettings = [labelOffsetPx, shaftThickness, arrowheadWidthFactor, arrowheadHeightFactor]
+//   _1: label distance from shaft (px; positive = left, negative = right)
+//   _2: half shaft width (in coord units)
+//   _3: arrowhead width multiplier (relative to 2 * shaft width)
+//   _4: arrowhead height multiplier (relative to 2 * shaft width)
+vecLabelSize = 20;
+vecSettingsL = [ 20, 0.05, 4, 4.0];
+vecSettingsR = [-30, 0.05, 4, 4.0];
+
+veclabel(start, end, name, settings, col) := (
+  regional(v, p, lab, pos, sep, thick);
+  sep   = settings_1;
+  thick = settings_2;
+  lab   = "$\vec{" + name + "}$";
+  v     = end - start;
+  p     = perpVec(v);
+  pos   = 0.5 * (start + end) + (sep / screenresolution() + thick) * p;
+  drawtext(pos, lab, color -> col, size -> vecLabelSize);
+);
+
+drawArrow(A, B, name, settings, col) := (
+  regional(v, u, p, sT, hWF, hHF, hHalfW, hH, base, hPoly, sPoly);
+  sT  = settings_2;
+  hWF = settings_3;
+  hHF = settings_4;
+  v   = B - A;
+  if(|v| > 10^(-5),
+    u      = v / |v|;
+    p      = perpVec(v);
+    hHalfW = sT * hWF;
+    hH     = 2 * sT * hHF;
+    base   = B - hH * u;
+    hPoly  = polygon((B, base + p * hHalfW, base - p * hHalfW));
+    sPoly  = polygon((A + p * sT, A - p * sT, base - p * sT, base + p * sT));
+    fill(hPoly, color -> col);
+    fill(sPoly, color -> col);
+    veclabel(A, B, name, settings, col);
+  );
+);
+
+// Angles --------------------------------------------------------
+// drawAngle(P1, P2, C, r, col, alpha, label, labelPos, labelCol)
+//   P1, P2   – two points defining the legs (rays C→P1 and C→P2)
+//   C        – vertex
+//   r        – arc radius (coord units)
+//   col      – stroke color
+//   alpha    – fill blend toward white (0 = no fill, 1 = white)
+//   label    – LaTeX string without $…$, or "VAL" for the numeric value
+//   labelPos – label distance factor along the bisector (1.0 = on arc)
+//   labelCol – label color
+//
+// Convenience wrapper drawAngleC() uses the concept defaults
+// (colorAngle, alpha 0.9, labelPos 0.7) — see APPLET LOGIC.
+angLabelSize = 20;
+angArcSize   = 2;
+
+drawAngle(P1, P2, C, r, col, alpha, label, labelPos, labelCol) := (
+  regional(a1, a2, sweep, arcRes, arcPoints, labelPt, labelDir);
+  a1    = arctan2(P1 - C);
+  sweep = arccos((P1 - C) * (P2 - C) / (|P1 - C| * |P2 - C|));
+  a2    = a1 + sweep;
+  if(sweep > 1° & r > 0.01,
+    arcRes    = max(5, round(sweep * 30));
+    arcPoints = [C];
+    repeat(arcRes, start -> a1, stop -> a2, a,
+      arcPoints = arcPoints ++ [gauss(exp(i * a) * r * 25 / screenresolution()) + C]
+    );
+    arcPoints = arcPoints ++ [C.xy];
+    if(alpha > 0,
+      fillpoly(arcPoints, color -> col * (1 - alpha) + (1, 1, 1) * alpha)
+    );
+    connect(arcPoints, size -> angArcSize, border -> false, color -> col);
+    labelDir = gauss(exp(i * (a1 + a2) / 2));
+    labelPt  = C + labelDir * (labelPos * r * 25 / screenresolution()) + (0, -0.1);
+    if(label == "VAL",
+      drawtext(labelPt, (a2 - a1), align -> "center", tex -> true, color -> labelCol),
+      drawtext(labelPt, "$" + label + "$",
+        align -> "center", tex -> true, color -> labelCol, size -> angLabelSize)
+    );
+  );
+);
+
+// drawAngleC(P1, P2, C, r, label)
+// Convenience wrapper using concept defaults.
+drawAngleC(P1, P2, C, r, label) :=
+  drawAngle(P1, P2, C, r, colorAngle, 0.9, label, 0.7, colorAngle);
+
+// Vector LaTeX printer ------------------------------------------
+// texVec(name, vec)            → digits = 2
+// texVec(name, vec, digits)    → custom precision
+// Renders $\vec{name} = \begin{pmatrix} … \end{pmatrix}$ when the
+// rounded values are exact, otherwise \approx.
+// Works for any dimension n.
+texVec(name, v) := texVec(name, v, 2);
+texVec(name, v, digits) := (
+  regional(scale, n, rounded, exact, body, rel, tol);
+  scale   = 10^digits;
+  n       = length(v);
+  tol     = 5 * 10^(-digits - 2);
+  rounded = apply(1..n, k, round(scale * v_k) / scale);
+  exact   = forall(1..n, k, |rounded_k - v_k| < tol);
+  rel     = if(exact, "=", "\approx");
+  body    = "";
+  forall(1..n, k,
+    body = body + rounded_k;
+    if(k < n, body = body + " \\ ");
+  );
+  // \! pulls the pmatrix slightly closer to the relation symbol so
+  // the gap matches "ä ≈ (…)" rather than the wider default LaTeX
+  // spacing around \approx.
+  "$\vec{" + name + "} " + rel + "\!\, \begin{pmatrix} " + body + " \end{pmatrix}$"
+);
+
+// Point pulse animation -----------------------------------------
+// pulsePoint(P)                       — defaults: base = 5, amp = 3.2, freq = 4
+// pulsePoint(P, base, amp, freq)      — explicit
+// Call from csmove. Sets P.size to a sin² oscillation.
+pulsePoint(P) := pulsePoint(P, 5, 3.2, 4);
+pulsePoint(P, base, amp, freq) := (
+  P.size = base + amp * sin(freq * seconds())^2;
+);
+
+
+// ════════════════════════════════════════════════════════════════
+// APPLET LOGIC — applet-specific drawing and state
+// ════════════════════════════════════════════════════════════════
+
+sidebarWantedWpx = 160;   // wider than default (90) to fit button labels
+sidebarWantedHpx = 170;   // tall enough for slider + two stacked buttons
+
+// ---- Text-field backgrounds ------------------------------------
+// Flip any of these to false to make that label transparent (no white
+// box behind it). They feed the showBg argument of drawLabel().
+labelBgTitle = true;    // applet title (top-left)
+labelBgComps = true;    // a / b component labels (top-left)
+labelBgSkp   = true;    // scalar-product result next to B
+
+// ---- Length (|b|) slider range / detents -----------------------
+bMin  = 1;     // shortest |b| (slider)
+bMax  = 8;     // longest |b|  (slider)
+bStep = 0.5;   // slider detents
+// The random-position button uses a narrower range so the start circle
+// stays on screen and clear of the top labels (the slider still 1…8).
+bRandMin = 2;
+bRandMax = 6;
+
+// ---- Angle drag (display mode) ---------------------------------
+// In display mode the angle is changed by dragging B around a circle
+// of radius |b|, snapping magnetically onto whole 5° steps (continuous
+// in between). By default it is restricted to the half-circle 0°…180°;
+// fullCircle (toggle in edit mode) allows the directed angle 0°…360°.
+angSnapStep = 5;      // snap grid in degrees
+angSnapTol  = 1.6;    // magnetic catch radius around each step, degrees
+
+updateAngleFromB() := (
+  regional(angA, d, snapped);
+  angA    = arctan2(A - O);
+  // Read the cursor directly, not B: while dragging, CindyJS moves B to
+  // the mouse and the script resets it to the circle, so B is ambiguous;
+  // the mouse is the unambiguous intent.
+  d       = mod((arctan2(mouse() - O) - angA) / 1°, 360);   // degrees in [0,360)
+  if(!fullCircle,                                      // clamp to half-circle
+    if(d > 180, if(d > 270, d = 0, d = 180)));
+  snapped = round(d / angSnapStep) * angSnapStep;     // nearest 5°
+  if(|d - snapped| < angSnapTol, d = snapped);         // magnetic catch
+  angleDiff = d * 1°;
+);
+
+// Angle arc drawn with the actual (directed) sweep angleDiff, so it is
+// correct for reflex angles (> 180°) in full-circle mode — drawAngleC
+// would only ever draw the ≤ 180° arc. Mirrors drawAngle's styling.
+drawAngleDir(C, a1, sweep, r, label) := (
+  regional(a2, rr, arcPoints, labelDir, labelPt);
+  if(sweep > 1° & r > 0.01,
+    a2 = a1 + sweep;
+    rr = r * 25 / screenresolution();
+    arcPoints = [C];
+    repeat(max(8, round(sweep / 1° * 0.6)), start -> a1, stop -> a2, a,
+      arcPoints = arcPoints ++ [gauss(exp(i * a) * rr) + C]
+    );
+    arcPoints = arcPoints ++ [C.xy];
+    fillpoly(arcPoints, color -> colorAngle * 0.1 + (1, 1, 1) * 0.9);
+    connect(arcPoints, size -> angArcSize, border -> false, color -> colorAngle);
+    labelDir = gauss(exp(i * (a1 + a2) / 2));
+    labelPt  = C + labelDir * (0.7 * rr) + (0, -0.1);
+    drawtext(labelPt, "$" + label + "$",
+             align -> "center", tex -> true, color -> colorAngle, size -> angLabelSize);
+  );
+);
+
+// Dashed locus of all reachable b-tips for the current length: the full
+// circle of radius |b| in full-circle mode, otherwise just the
+// half-circle 0°…180° relative to a (where B can actually go).
+adjustBCircle() := (
+  regional(angA, p1, pv, p2);
+  if(!editmode,
+    if(fullCircle,
+      drawcircle(O, bLen, size -> 3, color -> wineRed, dashtype -> 3);
+    ,
+      angA = arctan2(A - O);
+      p1 = O + bLen * [cos(angA),         sin(angA)];
+      pv = O + bLen * [cos(angA + 90°),   sin(angA + 90°)];
+      p2 = O + bLen * [cos(angA + 180°),  sin(angA + 180°)];
+      drawarc(p1, pv, p2, size -> 3, color -> wineRed, dashtype -> 3);
+    );
+  );
+);
+
+// Sidebar contents: the |b|-slider plus two stacked buttons at the
+// bottom — the random-position button and, above it, the half-/full-
+// circle toggle (so all controls sit together). Sidebar-local pixel
+// coords via sb(px, py); the thumb maps bLen onto [bMin, bMax].
+drawSidebar() := (
+  regional(pad, w, h, btnH, btnPad, btnGap, bL, bR, blkB, blkT,
+           projMouse, distMouse, mouseInBlk, draggingSlider, t, val,
+           rcB, rcT, vkB, vkT, vkTxt);
+
+  w = sbWidthPx();
+  h = sbHeightPx();
+  btnH   = 36;
+  btnPad = 8;
+  btnGap = 8;
+
+  // Slider track sits above the two-button block.
+  if(!isPortrait,
+    pad = 14;
+    slAngS = sb(w/2, 2 * btnH + 2 * btnPad + btnGap + 40);
+    slAngE = sb(w/2, h - pad);
+  ,
+    pad = 55;
+    slAngS = sb(pad,     h - 46);
+    slAngE = sb(w - pad, h - 46);
+  );
+
+  // Button bounds (shared x extent; random at bottom, toggle above).
+  bL  = sb(btnPad,     btnPad).x;
+  bR  = sb(w - btnPad, btnPad).x;
+  rcB = sb(btnPad, btnPad).y;
+  rcT = sb(btnPad, btnPad + btnH).y;
+  vkB = sb(btnPad, btnPad + btnH + btnGap).y;
+  vkT = sb(btnPad, 2 * btnH + btnPad + btnGap).y;
+  blkB = rcB;   // whole button block, for slider-drag exclusion
+  blkT = vkT;
+
+  draggingSlider = false;
+
+  // Robust slider drag detection (mouseDownFlag from csmousedown/up);
+  // clicks inside the button block don't count as slider drags.
+  if(mouseDownFlag & |slAngE - slAngS| > 0.001,
+    projMouse  = ((mouse() - slAngS) * (slAngE - slAngS)) / |slAngE - slAngS|^2;
+    distMouse  = |mouse() - (slAngS + max(0, min(1, projMouse)) * (slAngE - slAngS))|
+                 * screenresolution();
+    mouseInBlk = mouse().x > bL & mouse().x < bR &
+                 mouse().y > blkB & mouse().y < blkT;
+    if(distMouse < 30 & !mouseInBlk,
+      draggingSlider = true;
+      t    = max(0, min(1, projMouse));
+      val  = bMin + t * (bMax - bMin);
+      bLen = round(val / bStep) * bStep;   // snap to bStep detents
+    );
+  );
+
+  // Thumb reflects bLen (also tracks randomStart, stays put otherwise).
+  slAngP.xy = slAngS + ((bLen - bMin) / (bMax - bMin)) * (slAngE - slAngS);
+  slAngP.color = colorVector;
+  draw(slAngS, slAngE, color -> colorVector, size -> 8);
+  slAngP.size = 12;
+
+  // Endpoint labels = the |b| range.
+  if(!isPortrait,
+    drawtext(slAngS, "" + bMin, yoffset -> -25, color -> colorVector, size -> 24, align -> "center");
+    drawtext(slAngE, "" + bMax, yoffset ->  20, color -> colorVector, size -> 24, align -> "center");
+  ,
+    drawtext(slAngS, "" + bMin, xoffset -> -8, color -> colorVector, size -> 22, align -> "right");
+    drawtext(slAngE, "" + bMax, xoffset ->  8, color -> colorVector, size -> 22, align -> "left");
+  );
+
+  // Current |b| value at the thumb.
+  if(isPortrait,
+    drawtext(slAngP.xy, "$|\vec b| = " + bLen + "$",
+             yoffset -> 26, align -> "center", size -> 20, color -> colorVector);
+  ,
+    drawtext(slAngP.xy, "$|\vec b| = " + bLen + "$",
+             xoffset -> -16, align -> "right", size -> 22, color -> colorVector);
+  );
+
+  // Random-position button (bottom).
+  fillpoly([[bL, rcB], [bR, rcB], [bR, rcT], [bL, rcT]], color -> petrol10);
+  drawtext([(bL + bR) / 2, (rcB + rcT) / 2], "Zufällige Position",
+           align -> "center", size -> 16, color -> petrol, yoffset -> -16 * 0.27);
+  btnRandL = bL; btnRandR = bR; btnRandB = rcB; btnRandT = rcT;
+
+  // Half-/full-circle toggle (above the random button), darker when on.
+  vkTxt = "Vollkreis: " + if(fullCircle, "an", "aus");
+  fillpoly([[bL, vkB], [bR, vkB], [bR, vkT], [bL, vkT]],
+           color -> if(fullCircle, petrol25, petrol10));
+  drawtext([(bL + bR) / 2, (vkB + vkT) / 2], vkTxt,
+           align -> "center", size -> 16, color -> petrol, yoffset -> -16 * 0.27);
+  vcL = bL; vcR = bR; vcB = vkB; vcT = vkT;
+);
+
+// ----------------------------------------------------------------
+// Random start position
+// Picks a in Q1 with integer components in {1..4}, a moderate random
+// length |b| (a bStep multiple in [bRandMin, bRandMax]) and a random
+// angle (a 5° multiple in [20°, 160°], but never 90°, so the scalar
+// product is not 0 at the start). B is then placed on the circle.
+// ----------------------------------------------------------------
+randomStart() := (
+  regional(ax, ay, angA, k);
+  ax = 1 + floor(random() * 4);
+  ay = 1 + floor(random() * 4);
+  A.xy = [ax, ay];
+
+  // random length: bStep multiples covering [bRandMin, bRandMax]
+  bLen = bRandMin + bStep * floor(random() * ((bRandMax - bRandMin) / bStep + 1));
+
+  // random angle: 5° multiples in [20°, 160°], skipping the 90° step
+  // (a·b = 0). 28 steps instead of 29; k = 14 (→ 90°) is jumped over.
+  k = floor(random() * 28);
+  if(k >= 14, k = k + 1);
+  angleDiff = (20 + 5 * k) * 1°;
+
+  // place B on the circle of radius |b|
+  angA  = arctan2(A - O);
+  B0.xy = [cos(angA + angleDiff), sin(angA + angleDiff)];
+  B.xy  = O + bLen * [cos(angA + angleDiff), sin(angA + angleDiff)];
+);
+
+// Main drawing: the angle (labelled with its degree value) and arrows
+// a, b. B is placed on the circle of radius |b| in direction
+// angleA + angleDiff. Angle drawn behind the arrows.
+drawVecsWithAngle() := (
+  regional(angLabel);
+  if(|A - O| > 0.0001,
+    A0.xy  = A / |A|;
+    angleA = arctan2(A - O);
+    angleB = angleA + angleDiff;
+    B0.xy  = O + (cos(angleB), sin(angleB));
+    B.xy   = O + bLen * (cos(angleB), sin(angleB));
+    angLabel = round(angleDiff / 1°) + "^\circ";
+    drawAngleDir(O, angleA, angleDiff, min(4, 2 * bLen), angLabel);
+  );
+  drawArrow(O, B, "b", vecSettingsL, colorVector);
+  if(|A - O| > 0.0001,
+    drawArrow(O, A, "a", vecSettingsR, colorVector);
+  );
+);
+
+// ----------------------------------------------------------------
+// Initial values
+// ----------------------------------------------------------------
+O.xy  = [0, 0];
+
+slAngS    = [0, 0];
+slAngE    = [0, 0];
+
+B.color    = colorPoint;
+B.labelled = false;
+A.color    = colorPoint;
+A.size     = 10;
+A.labelled = false;
+
+bLen        = 4;       // |b|, overwritten by randomStart / slider
+angleDiff   = 60°;     // angle of b vs a, overwritten by randomStart / B-drag
+editmode    = false;
+wasPortrait = false;
+
+btnRandL = 0; btnRandR = 0; btnRandT = 0; btnRandB = 0;
+vcL = 0; vcR = 0; vcB = 0; vcT = 0;   // full-circle toggle bounds
+fullCircle    = false;   // default: half-circle (0°…180°)
+mouseDownFlag = false;   // tracked via csmousedown / csmouseup
+draggingB     = false;   // true while B is grabbed in display mode
+
+randomStart();
+
+resetclock();
+playAnimation();
+
+</script>
+
+
+<!-- ===========================================================
+     CSMOVE — runs every animation frame
+     =========================================================== -->
+<script id="csmove" type="text/x-cindyscript">
+
+// Pulse B in display mode; fixed size in edit mode. The text values
+// (a·b, components) are computed in csdraw AFTER B is placed on the
+// circle, so they never lag the drag or jump when the mouse is released.
+if(!editmode,
+  pulsePoint(B, 5, 3.2, 4);
+,
+  B.size = 5;
+);
+
+</script>
+
+
+<!-- ===========================================================
+     CSDRAW — runs every frame after csmove
+     =========================================================== -->
+<script id="csdraw" type="text/x-cindyscript">
+
+// 1) Layout + anchors. sidebarVisible is auto-synced from editmode
+//    because sidebarFollowsEditmode is true (the default).
+platformBeginFrame();
+
+// 2) Couple geometry visibility to mode. A is pinned in display mode
+//    so the (invisible) tip of a cannot be grabbed by accident; only
+//    B is draggable there.
+B.pinned       = editmode;
+B.visible      = !editmode;
+A.visible      = editmode;
+A.pinned       = !editmode;
+slAngP.visible = editmode;
+
+// 3) Status / hint messages.
+if(editmode,
+  setStatus(
+    ["SITUATION BEARBEITEN: Du kannst jetzt",
+     "den Betrag $|\vec{b}|$ und den Endpunkt von $\vec{a}$ anpassen."],
+    "alert");
+,
+  clearStatus();
+);
+
+// 4) Sidebar contents (slider) — only when the sidebar is visible.
+if(sidebarVisible, drawSidebar());
+wasPortrait = isPortrait;
+
+// 5) Mathematics.
+// In display mode the angle is set by dragging B around the circle
+// (only while B is grabbed → draggingB), with magnetic 5° snapping.
+// In edit mode B is pinned and |b| comes from the slider. In both
+// cases drawVecsWithAngle re-places B on the circle of radius |b|.
+if(!editmode & draggingB, updateAngleFromB());
+// In half-circle mode keep the angle within 0°…180° (e.g. after the
+// user switches full-circle off while B sits at a reflex angle).
+if(!fullCircle, angleDiff = max(0°, min(180°, angleDiff)));
+adjustBCircle();
+drawVecsWithAngle();
+
+// Display values from the FINAL B (after drawVecsWithAngle put it on the
+// circle) — so a·b and the components match the drawn geometry exactly,
+// during the drag and the moment the mouse is released.
+roundedSkpAB = round(100 * A * B) / 100;
+tSkp = if(|roundedSkpAB - A * B| < 0.0001,
+  "$\vec a \bullet \vec b = "       + roundedSkpAB + "$",
+  "$\vec a \bullet \vec b \approx " + roundedSkpAB + "$"
+);
+tVecA = texVec("a", [A.x, A.y]);
+tVecB = texVec("b", [B.x, B.y]);
+
+// 6) Math text overlays (as in the Beträge applet): a·b floats next to
+//    B, and the a / b components sit top-left — inline in landscape,
+//    stacked in portrait. (The full-circle toggle lives in the sidebar.)
+fsSkp   = if(isPortrait, 30, 24);
+fsComps = if(isPortrait, 32, 30);
+ovPad   = 8;   // background padding around the labels, px
+
+// Scalar-product result, anchored just OUTSIDE the circle along the
+// b-direction so it never overlaps the circle's interior. The text
+// extends further outward (left- or right-aligned by B's side).
+if(!editmode,
+  regional(u, gap, halign);
+  u   = (B - O) / max(|B - O|, 0.0001);
+  gap = 16 / screenresolution();
+  halign = if(u.x >= 0, "left", "right");
+  drawLabel(B.x + u.x * gap, B.y + u.y * gap, tSkp,
+            fsSkp, [0, 0, 0], halign, "mid", labelBgSkp, ovPad);
+);
+
+// a / b components.
+if(!isPortrait,
+  drawLabel(axContentLeft, axContentTop,
+    tVecA + if(!editmode, ",    " + tVecB, ""),
+    fsComps, colorVector, "left", "top", labelBgComps, ovPad);
+,
+  regional(yBelow);
+  yBelow = drawLabel(axContentLeft, axContentTop, tVecA,
+                     fsComps, colorVector, "left", "top", labelBgComps, ovPad);
+  if(!editmode,
+    drawLabel(axContentLeft, yBelow - 6 / screenresolution(), tVecB,
+              fsComps, colorVector, "left", "top", labelBgComps, ovPad);
+  );
+);
+
+// 7) Chrome on top.
+drawTitle();
+drawCog();
+drawUnit();
+drawStatusOrCredits();
+
+</script>
+
+
+<!-- ===========================================================
+     CSMOUSEDOWN — cog button toggles edit mode
+     =========================================================== -->
+<script id="csmousedown" type="text/x-cindyscript">
+mouseDownFlag = true;   // consumed by drawSidebar for slider dragging
+// Grab B for angle dragging only if the press starts near it (display
+// mode). Keeps clicks on empty space / chrome from moving the angle.
+if(!editmode & |mouse() - B| * screenresolution() < 40, draggingB = true);
+if(mouse().x > axCogLeft & mouse().x < axCogRight &
+   mouse().y > axCogBot  & mouse().y < axCogTop,
+  editmode = !editmode;
+);
+if(editmode &
+   mouse().x > btnRandL & mouse().x < btnRandR &
+   mouse().y > btnRandB & mouse().y < btnRandT,
+  randomStart();
+);
+if(editmode &
+   mouse().x > vcL & mouse().x < vcR &
+   mouse().y > vcB & mouse().y < vcT,
+  fullCircle = !fullCircle;
+);
+</script>
+
+
+<!-- ===========================================================
+     CSMOUSEUP — clear the mouse-button state
+     =========================================================== -->
+<script id="csmouseup" type="text/x-cindyscript">
+mouseDownFlag = false;
+draggingB     = false;
+</script>
+
+
+<!-- ===========================================================
+     CindyJS initialization — geometry objects and viewport
+     =========================================================== -->
+<script type="text/javascript">
+var cdy = CindyJS({
+    scripts: "cs*",
+    defaultAppearance: {
+        dimDependent: 0.7,
+        fontFamily:   "sans-serif",
+        lineSize:     1,
+        pointSize:    5.0,
+        textsize:     12.0
+    },
+    angleUnit: "°",
+    geometry: [
+        // Origin (pinned, invisible)
+        {name: "O", type: "Free", pos: [0.0, 0.0, 4.0],
+            color: [1.0, 0.0, 0.0], visible: false, pinned: true, labeled: true},
+        // Tip of vector a (draggable in edit mode)
+        {name: "A", type: "Free", pos: [4.0, 0.8, 0.8],
+            dimDependent: 1, color: [0.714, 0.502, 0.573], visible: false},
+        // Unit vector in direction of a (internal, invisible)
+        {name: "A0", type: "Free", pos: [3.92232270276368, 0.7844645405527362, 4.0],
+            color: [1.0, 0.0, 0.0], visible: false, labeled: true},
+        // Unit vector in direction of b (internal, invisible)
+        {name: "B0", type: "Free", pos: [2.218800784900914, 3.328201177351376, 4.0],
+            color: [1.0, 0.0, 0.0], visible: false, labeled: true},
+        // Tip of vector b — a free point that the script constrains to the
+        // circle of radius |b|; draggable in display mode to set the angle.
+        {name: "B", type: "Free", pos: [2.0, 3.0, 1.0],
+            dimDependent: 1, color: [0.643, 0.255, 0.408], size: 7.0},
+        // Slider point for α (only visible in edit mode).
+        // labeled:false → the α label is drawn manually by drawSidebar
+        // so it can be centered above the point in portrait.
+        {name: "slAngP", type: "Free", pos: [4.0, 0.338425786526072, 0.4411103290562929],
+            dimDependent: 1, color: [0.973, 0.706, 0.31], visible: false,
+            labeled: false, textsize: 24.0, size: 10.0, border: false,
+            printname: "$\\alpha$"}
+    ],
+    ports: [{
+        id: "CSCanvas",
+        transform: [{visibleRect: [-7, 7, 7, -7]}],
+        grid: 0.5,
+        snap: true,
+        background: "rgb(255,255,255)"
+    }],
+    csconsole: false,
+    use: ["katex"],
+    cinderella: {build: 2124, version: [3, 0, 2124]}
+});
+
+// ===========================================================
+// Responsive viewport: keep the grid-cell size identical in
+// portrait and landscape.
+//
+// CindyJS' visibleRect fits the rectangle with a uniform
+// min-scale, so a fixed landscape-shaped rect (17×10) gets a
+// much smaller scale on a tall portrait canvas — the squares
+// shrink. To avoid that we rebuild the visibleRect for the
+// current canvas so the scale (px per unit) always equals the
+// scale this device would use in landscape. Landscape and
+// desktop are unaffected; portrait simply zooms in to match.
+//
+// CindyJS re-reads ports[].transform on every (real) resize and
+// defers the recompute via requestAnimationFrame, while these
+// listeners run synchronously first — so the updated rect is
+// what CindyJS applies.
+// ===========================================================
+(function () {
+  // Design rectangle. Centred on the origin and square (the circle is
+  // centred on O). Zoom close to the Beträge applet; a large circle
+  // (|b| near 8) then reaches a little past the top/bottom edge, which
+  // is fine — like the ray running off-screen there.
+  var DW = 14, DH = 14, CX = 0, CY = 0;
+  function applyResponsiveViewport() {
+    var el = document.getElementById("CSCanvas");
+    var W = (el && el.clientWidth)  || window.innerWidth;
+    var H = (el && el.clientHeight) || window.innerHeight;
+    if (!(W > 0 && H > 0)) return;
+    // Scale this device uses in landscape (long side ↔ width).
+    var sr = Math.min(Math.max(W, H) / DW, Math.min(W, H) / DH);
+    var halfW = W / sr / 2, halfH = H / sr / 2;
+    // Rect aspect matches the canvas, so min-fit reproduces sr exactly.
+    cdy.config.ports[0].transform[0].visibleRect =
+      [CX - halfW, CY + halfH, CX + halfW, CY - halfH];
+  }
+  applyResponsiveViewport();   // before CindyJS' deferred startup reads config
+  window.addEventListener("resize", applyResponsiveViewport);
+  window.addEventListener("orientationchange", applyResponsiveViewport);
+})();
+</script>
+</head>
+<body>
+    <div id="CSCanvas"></div>
+</body>
+</html>
