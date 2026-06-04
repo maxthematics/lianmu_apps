@@ -2,13 +2,13 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Skalarprodukt und Beträge</title>
+    <title>Skalarprodukt und Winkel</title>
 
 <!--
-  Skalarprodukt und Beträge (LiAnMU / QuaMath Web Applets)
+  Skalarprodukt und Winkel (LiAnMU / QuaMath Web Applets)
   Authors: Max Hoffmann, Janine Herrmann, Olga Lomas & Lena Wessel
   Context: QuaMath (DZLM + IPN, funded by KMK) | LiAnMU | Paderborn University
-  Version: v2026-05-19
+  Version: v2026-06-04
   License: MIT (see LICENSE)
 -->
 
@@ -45,7 +45,7 @@ appletTitle        = "Skalarprodukt und Winkel";
 appletAuthors      = "Max Hoffmann, Janine Herrmann, Olga Lomas & Lena Wessel";
 appletAffiliations = "QuaMath (DZLM + IPN, gef. v. KMK) | LiAnMU | Universität Paderborn";
 appletContact      = "max.hoffmann@math.uni-paderborn.de";
-appletVersion      = "v2026-05-19";
+appletVersion      = "v2026-06-04";
 appletLicense      = "MIT License";
 
 
@@ -978,6 +978,13 @@ tSkp = if(|roundedSkpAB - A * B| < 0.0001,
 tVecA = texVec("a", [A.x, A.y]);
 tVecB = texVec("b", [B.x, B.y]);
 
+// Magnitudes |a| (usually irrational → ≈) and |b| (= the slider value).
+absAval = |A - O|;
+rAbsA   = round(100 * absAval) / 100;
+tAbsA   = "$|\vec a| " + if(|rAbsA - absAval| < 0.0001, "=", "\approx") + " " + rAbsA + "$";
+rAbsB   = round(100 * bLen) / 100;
+tAbsB   = "$|\vec b| " + if(|rAbsB - bLen| < 0.0001, "=", "\approx") + " " + rAbsB + "$";
+
 // 6) Math text overlays (as in the Beträge applet): a·b floats next to
 //    B, and the a / b components sit top-left — inline in landscape,
 //    stacked in portrait. (The full-circle toggle lives in the sidebar.)
@@ -985,9 +992,42 @@ fsSkp   = if(isPortrait, 30, 24);
 fsComps = if(isPortrait, 32, 30);
 ovPad   = 8;   // background padding around the labels, px
 
-// Scalar-product result, anchored just OUTSIDE the circle along the
-// b-direction so it never overlaps the circle's interior. The text
-// extends further outward (left- or right-aligned by B's side).
+// (The a·b label is drawn LAST — see section 8 — so it always stays on
+//  top of the top-left text fields when B passes behind them.)
+
+// a / b components, with |a| and |b| right below them.
+regional(yBelow);
+if(!isPortrait,
+  yBelow = drawLabel(axContentLeft, axContentTop,
+    tVecA + if(!editmode, ",    " + tVecB, ""),
+    fsComps, colorVector, "left", "top", labelBgComps, ovPad);
+,
+  yBelow = drawLabel(axContentLeft, axContentTop, tVecA,
+                     fsComps, colorVector, "left", "top", labelBgComps, ovPad);
+  if(!editmode,
+    yBelow = drawLabel(axContentLeft, yBelow - 6 / screenresolution(), tVecB,
+                       fsComps, colorVector, "left", "top", labelBgComps, ovPad);
+  );
+);
+
+// Magnitudes |a|, |b| just below the component panel (display mode),
+// same petrol as the vectors.
+if(!editmode,
+  drawLabel(axContentLeft, yBelow - 8 / screenresolution(),
+    tAbsA + ",    " + tAbsB,
+    if(isPortrait, 30, 26), colorVector, "left", "top", labelBgComps, ovPad);
+);
+
+// 7) Chrome on top.
+drawTitle();
+drawCog();
+drawUnit();
+drawStatusOrCredits();
+
+// 8) Scalar-product result at the vector tip, drawn LAST so it sits on
+//    the topmost layer (above the top-left text fields). Anchored just
+//    OUTSIDE the circle along the b-direction; the text extends outward
+//    (left- or right-aligned by B's side).
 if(!editmode,
   regional(u, gap, halign);
   u   = (B - O) / max(|B - O|, 0.0001);
@@ -996,27 +1036,6 @@ if(!editmode,
   drawLabel(B.x + u.x * gap, B.y + u.y * gap, tSkp,
             fsSkp, [0, 0, 0], halign, "mid", labelBgSkp, ovPad);
 );
-
-// a / b components.
-if(!isPortrait,
-  drawLabel(axContentLeft, axContentTop,
-    tVecA + if(!editmode, ",    " + tVecB, ""),
-    fsComps, colorVector, "left", "top", labelBgComps, ovPad);
-,
-  regional(yBelow);
-  yBelow = drawLabel(axContentLeft, axContentTop, tVecA,
-                     fsComps, colorVector, "left", "top", labelBgComps, ovPad);
-  if(!editmode,
-    drawLabel(axContentLeft, yBelow - 6 / screenresolution(), tVecB,
-              fsComps, colorVector, "left", "top", labelBgComps, ovPad);
-  );
-);
-
-// 7) Chrome on top.
-drawTitle();
-drawCog();
-drawUnit();
-drawStatusOrCredits();
 
 </script>
 
@@ -1086,13 +1105,13 @@ var cdy = CindyJS({
         // circle of radius |b|; draggable in display mode to set the angle.
         {name: "B", type: "Free", pos: [2.0, 3.0, 1.0],
             dimDependent: 1, color: [0.643, 0.255, 0.408], size: 7.0},
-        // Slider point for α (only visible in edit mode).
-        // labeled:false → the α label is drawn manually by drawSidebar
-        // so it can be centered above the point in portrait.
+        // Thumb of the |b| slider (only visible in edit mode).
+        // labeled:false → the |b| value is drawn manually by drawSidebar
+        // (centred above / beside the thumb).
         {name: "slAngP", type: "Free", pos: [4.0, 0.338425786526072, 0.4411103290562929],
-            dimDependent: 1, color: [0.973, 0.706, 0.31], visible: false,
+            dimDependent: 1, color: [0.643, 0.255, 0.408], visible: false,
             labeled: false, textsize: 24.0, size: 10.0, border: false,
-            printname: "$\\alpha$"}
+            printname: "$|\\vec b|$"}
     ],
     ports: [{
         id: "CSCanvas",
