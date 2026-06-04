@@ -140,6 +140,17 @@ colorAccent = wineRed100;
 colorChrome = gray75;
 
 // ----------------------------------------------------------------
+// Coordinate grid. The framework draws the grid itself (drawGrid),
+// so its colour is fully configurable here. The port's `grid` value
+// still drives drag-snapping and should match gridSpacing.
+//   gridColor : line colour, 0 = black … 1 = white.
+//               higher = fainter, lower = stronger.
+// ----------------------------------------------------------------
+gridColor   = [0.80, 0.81, 0.81];   // ≈ 20% gray, a touch stronger than CindyJS' faint default
+gridSpacing = 0.5;                  // world units between grid lines (match the port `grid`)
+gridWidth   = 1;                    // line width in px
+
+// ----------------------------------------------------------------
 // Typography (point sizes). Each role: landscape / portrait.
 // Mobile sizes are ≥ landscape: a phone is held closer, but physical
 // readability still requires equal or larger glyphs, never smaller.
@@ -176,6 +187,16 @@ layoutCogBtnPx     = 40;   layoutCogBtnPxP     = 36;
 // manually in csdraw before calling platformBeginFrame().
 sidebarFollowsEditmode = true;
 sidebarVisible         = false;
+
+// Mouse-button state. CindyJS has no isdown() builtin, so the framework
+// tracks it here: csmousedown sets it true, csmouseup sets it false.
+// Applet code (e.g. slider drag-detection in drawSidebar) can read it.
+mouseDownFlag          = false;
+
+// Text-field backgrounds (showBg flag for drawLabel). Flip to false for
+// a transparent field. Add applet-specific flags (e.g. for math
+// overlays) next to your own labels in the APPLET LOGIC section.
+labelBgTitle           = true;   // applet title
 
 // Sidebar content size request (in pixels). The framework clamps to
 // [layoutSidebarMin…, layoutSidebarMax…] and to layoutSidebarMaxFrac
@@ -349,43 +370,73 @@ drawSidebar() := ( );
 platformBeginFrame() := (
   if(sidebarFollowsEditmode, sidebarVisible = editmode);
   computeAnchors();
+  drawGrid();
 );
 
 // ----------------------------------------------------------------
-// Text with a filled background rectangle. Use this whenever a
-// label must remain readable on top of geometry — the background
-// hides whatever is drawn behind it.
-//
-//   pos        – text anchor in world coordinates
-//   text       – plain string (LaTeX widths are not measured!)
-//   fs         – font size in pt
-//   col        – text color
-//   bgcol      – background fill color (white = opaque cover)
-//   padPx      – padding around text in pixels
-//   alignment  – "left" | "center" | "right"
-//
-// Width is estimated as length(text) * fs * 0.55 — accurate for
-// sans-serif ASCII; for LaTeX content pass widthPxHint explicitly.
+// Coordinate grid, drawn by the framework (opaque, so its colour is
+// fully controllable — see gridColor). Spans the whole visible region
+// at gridSpacing. CindyJS' built-in grid still renders underneath for
+// snapping but is covered by these lines.
 // ----------------------------------------------------------------
-drawTextWithBg(pos, text, fs, col, bgcol, padPx, alignment) :=
-  drawTextWithBg(pos, text, fs, col, bgcol, padPx, alignment,
-                 length(text) * fs * 0.55);
+drawGrid() := (
+  regional(x0, x1, y0, y1, nx, ny);
+  x0 = floor(xmin / gridSpacing) * gridSpacing;
+  x1 = ceil (xmax / gridSpacing) * gridSpacing;
+  y0 = floor(ymin / gridSpacing) * gridSpacing;
+  y1 = ceil (ymax / gridSpacing) * gridSpacing;
+  nx = round((x1 - x0) / gridSpacing);
+  ny = round((y1 - y0) / gridSpacing);
+  repeat(nx + 1, i,
+    draw([x0 + (i - 1) * gridSpacing, y0], [x0 + (i - 1) * gridSpacing, y1],
+         color -> gridColor, size -> gridWidth));
+  repeat(ny + 1, i,
+    draw([x0, y0 + (i - 1) * gridSpacing], [x1, y0 + (i - 1) * gridSpacing],
+         color -> gridColor, size -> gridWidth));
+);
 
-drawTextWithBg(pos, text, fs, col, bgcol, padPx, alignment, widthPxHint) := (
-  regional(sr, wPx, hPx, ox, l, r, b, t);
+// ----------------------------------------------------------------
+// Label with an exactly-fitting background, measured from the ACTUAL
+// rendered text. pixelsize(text, size -> fs) returns
+// [width, ascent, descent] in px — measured the same way (and with the
+// same anchor) drawtext renders, so it is correct for KaTeX too. The
+// background therefore fits and stays centred at any font size, instead
+// of relying on hand-tuned multipliers.
+//
+//   x, y     – anchor point in world coordinates
+//   halign   – "left" | "center" | "right"
+//   valign   – "top" (y = box top) | "mid" (y = box centre)
+//              | "base" (y = text baseline)
+//   showBg   – true → white background; false → transparent (no box).
+//              Drive this from a per-field flag so an applet can switch
+//              any label's background on/off in one place.
+//   padPx    – uniform padding around the text, px
+//   returns  – the box bottom y (so labels can be stacked)
+// ----------------------------------------------------------------
+drawLabel(x, y, text, fs, textcol, halign, valign, showBg, padPx) := (
+  regional(sr, m, w, asc, desc, ax, ay, l, r, bb, tt);
   sr  = screenresolution();
-  wPx = widthPxHint;
-  hPx = fs;
-  ox  = if(alignment == "right",  -wPx,
-        if(alignment == "center", -wPx/2,
-                                    0));
-  l = pos.x + (ox - padPx) / sr;
-  r = pos.x + (ox + wPx + padPx) / sr;
-  b = pos.y - (hPx/2 + padPx) / sr;
-  t = pos.y + (hPx/2 + padPx) / sr;
-  fillpoly([[l, b], [r, b], [r, t], [l, t]], color -> bgcol);
-  drawtext(pos, text, size -> fs, color -> col, align -> alignment);
+  m   = pixelsize(text, size -> fs);
+  w   = m_1; asc = m_2; desc = m_3;
+  ax  = x + if(halign == "center", -w / (2 * sr),
+           if(halign == "right",   -w / sr, 0));
+  ay  = if(valign == "top", y - (padPx + asc) / sr,
+        if(valign == "mid", y + (desc - asc) / (2 * sr),
+                            y));
+  l   = ax - padPx / sr;
+  r   = ax + (w + padPx) / sr;
+  bb  = ay - (desc + padPx) / sr;
+  tt  = ay + (asc  + padPx) / sr;
+  if(showBg, fillpoly([[l, bb], [r, bb], [r, tt], [l, tt]], color -> white));
+  drawtext([ax, ay], text, size -> fs, color -> textcol, align -> "left");
+  bb
 );
+
+// Backward-compatible wrapper: pos-anchored, vertically centred, always
+// shows a white background. Kept so plain callers keep working while
+// now being measured/adaptive (bgcol is assumed white).
+drawTextWithBg(pos, text, fs, col, bgcol, padPx, alignment) :=
+  drawLabel(pos.x, pos.y, text, fs, col, alignment, "mid", true, padPx);
 
 // ----------------------------------------------------------------
 // Chrome drawing
@@ -394,21 +445,18 @@ drawTextWithBg(pos, text, fs, col, bgcol, padPx, alignment, widthPxHint) := (
 drawTitle() := (
   regional(fs);
   fs = if(isPortrait, fontTitleP, fontTitle);
-  drawTextWithBg([axTitleLeft, axTitleCy], appletTitle,
-                 fs, colorChrome, white, 6, "left");
+  drawLabel(axTitleLeft, axTitleCy, appletTitle,
+            fs, colorChrome, "left", "mid", labelBgTitle, 6);
 );
 
 drawCog() := (
   regional(sz);
-  if(editmode,
-    fillpoly([[axCogLeft, axCogBot], [axCogRight, axCogBot],
-              [axCogRight, axCogTop], [axCogLeft, axCogTop]],
-             color -> wineRed10);
-  );
+  // The cog itself signals the mode: wine red while editing,
+  // black otherwise. No background highlight.
   sz = if(isPortrait, 55, 65);
   drawtext([axCogCx, axCogCy], "⚙",
     align   -> "center", size -> sz,
-    color   -> [0, 0, 0],
+    color   -> if(editmode, wineRed, [0, 0, 0]),
     yoffset -> -sz * 0.27);
 );
 
@@ -592,6 +640,10 @@ P.color    = colorPoint;
 P.size     = 10;
 P.labelled = false;
 
+// Background toggle for the demo coordinate label (see drawLabel use
+// in csdraw). Add one such flag per text field in your own applet.
+labelBgVec = true;
+
 editmode    = false;
 wasPortrait = false;
 
@@ -651,11 +703,12 @@ wasPortrait = isPortrait;
 
 // 4) Applet content goes here.
 //    Use ax* anchors to position. Use concept colors and font* sizes.
-padCoord = 14 / screenresolution();
-fsMed    = if(isPortrait, fontMathMedP, fontMathMed);
+//    drawLabel measures the rendered text (KaTeX too) for an exactly
+//    fitting white background; labelBgVec toggles it on/off.
+fsMed = if(isPortrait, fontMathMedP, fontMathMed);
 
-drawtext([axContentLeft + padCoord, axContentTop - padCoord],
-  tVecP, size -> fsMed, color -> colorVector, yoffset -> -fsMed);
+drawLabel(axContentLeft, axContentTop, tVecP,
+          fsMed, colorVector, "left", "top", labelBgVec, 8);
 
 drawArrow([0, 0], P.xy, "p", vecSettingsL, colorVector);
 
@@ -672,10 +725,19 @@ drawStatusOrCredits();
      CSMOUSEDOWN — cog button toggles edit mode
      =========================================================== -->
 <script id="csmousedown" type="text/x-cindyscript">
+mouseDownFlag = true;   // framework mouse-button state (see csinit)
 if(mouse().x > axCogLeft & mouse().x < axCogRight &
    mouse().y > axCogBot  & mouse().y < axCogTop,
   editmode = !editmode;
 );
+</script>
+
+
+<!-- ===========================================================
+     CSMOUSEUP — clear the mouse-button state
+     =========================================================== -->
+<script id="csmouseup" type="text/x-cindyscript">
+mouseDownFlag = false;
 </script>
 
 
@@ -710,6 +772,44 @@ var cdy = CindyJS({
     use: ["katex"],
     cinderella: {build: 2124, version: [3, 0, 2124]}
 });
+
+// ===========================================================
+// Responsive viewport: keep the grid-cell size identical in
+// portrait and landscape.
+//
+// CindyJS' visibleRect fits the rectangle with a uniform
+// min-scale, so a fixed landscape-shaped rect (17×10) gets a
+// much smaller scale on a tall portrait canvas — the squares
+// shrink. To avoid that we rebuild the visibleRect for the
+// current canvas so the scale (px per unit) always equals the
+// scale this device would use in landscape. Landscape and
+// desktop are unaffected; portrait simply zooms in to match.
+//
+// CindyJS re-reads ports[].transform on every (real) resize and
+// defers the recompute via requestAnimationFrame, while these
+// listeners run synchronously first — so the updated rect is
+// what CindyJS applies. The design rect below must match the
+// visibleRect set in the ports config above.
+// ===========================================================
+(function () {
+  // Design rectangle, mirrors visibleRect [-6.5, 7.5, 10.5, -2.5].
+  var DW = 17, DH = 10, CX = 2, CY = 2.5;
+  function applyResponsiveViewport() {
+    var el = document.getElementById("CSCanvas");
+    var W = (el && el.clientWidth)  || window.innerWidth;
+    var H = (el && el.clientHeight) || window.innerHeight;
+    if (!(W > 0 && H > 0)) return;
+    // Scale this device uses in landscape (long side ↔ width).
+    var sr = Math.min(Math.max(W, H) / DW, Math.min(W, H) / DH);
+    var halfW = W / sr / 2, halfH = H / sr / 2;
+    // Rect aspect matches the canvas, so min-fit reproduces sr exactly.
+    cdy.config.ports[0].transform[0].visibleRect =
+      [CX - halfW, CY + halfH, CX + halfW, CY - halfH];
+  }
+  applyResponsiveViewport();   // before CindyJS' deferred startup reads config
+  window.addEventListener("resize", applyResponsiveViewport);
+  window.addEventListener("orientationchange", applyResponsiveViewport);
+})();
 </script>
 </head>
 <body>

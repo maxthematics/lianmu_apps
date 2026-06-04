@@ -109,6 +109,17 @@ colorAccent = wineRed100;  // highlights, edit-mode chrome
 colorChrome = gray100;      // titles, credits, neutral UI text
 
 // ----------------------------------------------------------------
+// Coordinate grid. The framework draws the grid itself (drawGrid),
+// so its colour is fully configurable here. The port's `grid` value
+// still drives drag-snapping and should match gridSpacing.
+//   gridColor : line colour, 0 = black … 1 = white.
+//               higher = fainter, lower = stronger.
+// ----------------------------------------------------------------
+gridColor   = [0.80, 0.81, 0.81];   // ≈ 20% gray, a touch stronger than CindyJS' faint default
+gridSpacing = 0.5;                  // world units between grid lines (match the port `grid`)
+gridWidth   = 1;                    // line width in px
+
+// ----------------------------------------------------------------
 // Typography (point sizes). Each role: landscape / portrait.
 // Mobile sizes are ≥ landscape: a phone is held closer, but physical
 // readability still requires equal or larger glyphs, never smaller.
@@ -346,44 +357,73 @@ drawSidebar() := ( );
 platformBeginFrame() := (
   if(sidebarFollowsEditmode, sidebarVisible = editmode);
   computeAnchors();
+  drawGrid();
 );
 
 // ----------------------------------------------------------------
-// Text with a filled background rectangle. Use this whenever a
-// label must remain readable on top of geometry — the background
-// hides whatever is drawn behind it.
-//
-//   pos        – text anchor in world coordinates
-//   text       – plain string (LaTeX widths are not measured!)
-//   fs         – font size in pt
-//   col        – text color
-//   bgcol      – background fill color (white = opaque cover)
-//   padPx      – padding around text in pixels
-//   alignment  – "left" | "center" | "right"
-//
-// Width is estimated as length(text) * fs * 0.55 — accurate for
-// sans-serif ASCII; for LaTeX content pass `widthHint` via the
-// 8-arg variant.
+// Coordinate grid, drawn by the framework (opaque, so its colour is
+// fully controllable — see gridColor). Spans the whole visible region
+// at gridSpacing. CindyJS' built-in grid still renders underneath for
+// snapping but is covered by these lines.
 // ----------------------------------------------------------------
-drawTextWithBg(pos, text, fs, col, bgcol, padPx, alignment) :=
-  drawTextWithBg(pos, text, fs, col, bgcol, padPx, alignment,
-                 length(text) * fs * 0.55);
+drawGrid() := (
+  regional(x0, x1, y0, y1, nx, ny);
+  x0 = floor(xmin / gridSpacing) * gridSpacing;
+  x1 = ceil (xmax / gridSpacing) * gridSpacing;
+  y0 = floor(ymin / gridSpacing) * gridSpacing;
+  y1 = ceil (ymax / gridSpacing) * gridSpacing;
+  nx = round((x1 - x0) / gridSpacing);
+  ny = round((y1 - y0) / gridSpacing);
+  repeat(nx + 1, i,
+    draw([x0 + (i - 1) * gridSpacing, y0], [x0 + (i - 1) * gridSpacing, y1],
+         color -> gridColor, size -> gridWidth));
+  repeat(ny + 1, i,
+    draw([x0, y0 + (i - 1) * gridSpacing], [x1, y0 + (i - 1) * gridSpacing],
+         color -> gridColor, size -> gridWidth));
+);
 
-drawTextWithBg(pos, text, fs, col, bgcol, padPx, alignment, widthPxHint) := (
-  regional(sr, wPx, hPx, ox, l, r, b, t);
+// ----------------------------------------------------------------
+// Label with an exactly-fitting background, measured from the ACTUAL
+// rendered text. pixelsize(text, size -> fs) returns
+// [width, ascent, descent] in px — measured the same way (and with the
+// same anchor) drawtext renders, so it is correct for KaTeX too. The
+// background therefore fits and stays centred at any font size, instead
+// of relying on hand-tuned multipliers.
+//
+//   x, y     – anchor point in world coordinates
+//   halign   – "left" | "center" | "right"
+//   valign   – "top" (y = box top) | "mid" (y = box centre)
+//              | "base" (y = text baseline)
+//   showBg   – true → white background; false → transparent (no box).
+//              Drive this from a per-field flag so an applet can switch
+//              any label's background on/off in one place.
+//   padPx    – uniform padding around the text, px
+//   returns  – the box bottom y (so labels can be stacked)
+// ----------------------------------------------------------------
+drawLabel(x, y, text, fs, textcol, halign, valign, showBg, padPx) := (
+  regional(sr, m, w, asc, desc, ax, ay, l, r, bb, tt);
   sr  = screenresolution();
-  wPx = widthPxHint;
-  hPx = fs;
-  ox  = if(alignment == "right",  -wPx,
-        if(alignment == "center", -wPx/2,
-                                    0));
-  l = pos.x + (ox - padPx) / sr;
-  r = pos.x + (ox + wPx + padPx) / sr;
-  b = pos.y - (hPx/2 + padPx) / sr;
-  t = pos.y + (hPx/2 + padPx) / sr;
-  fillpoly([[l, b], [r, b], [r, t], [l, t]], color -> bgcol);
-  drawtext(pos, text, size -> fs, color -> col, align -> alignment);
+  m   = pixelsize(text, size -> fs);
+  w   = m_1; asc = m_2; desc = m_3;
+  ax  = x + if(halign == "center", -w / (2 * sr),
+           if(halign == "right",   -w / sr, 0));
+  ay  = if(valign == "top", y - (padPx + asc) / sr,
+        if(valign == "mid", y + (desc - asc) / (2 * sr),
+                            y));
+  l   = ax - padPx / sr;
+  r   = ax + (w + padPx) / sr;
+  bb  = ay - (desc + padPx) / sr;
+  tt  = ay + (asc  + padPx) / sr;
+  if(showBg, fillpoly([[l, bb], [r, bb], [r, tt], [l, tt]], color -> white));
+  drawtext([ax, ay], text, size -> fs, color -> textcol, align -> "left");
+  bb
 );
+
+// Backward-compatible wrapper: pos-anchored, vertically centred, always
+// shows a white background. Kept so plain callers keep working while
+// now being measured/adaptive (bgcol is assumed white).
+drawTextWithBg(pos, text, fs, col, bgcol, padPx, alignment) :=
+  drawLabel(pos.x, pos.y, text, fs, col, alignment, "mid", true, padPx);
 
 // ----------------------------------------------------------------
 // Chrome drawing
@@ -392,21 +432,18 @@ drawTextWithBg(pos, text, fs, col, bgcol, padPx, alignment, widthPxHint) := (
 drawTitle() := (
   regional(fs);
   fs = if(isPortrait, fontTitleP, fontTitle);
-  drawTextWithBg([axTitleLeft, axTitleCy], appletTitle,
-                 fs, colorChrome, white, 6, "left");
+  drawLabel(axTitleLeft, axTitleCy, appletTitle,
+            fs, colorChrome, "left", "mid", labelBgTitle, 6);
 );
 
 drawCog() := (
   regional(sz);
-  if(editmode,
-    fillpoly([[axCogLeft, axCogBot], [axCogRight, axCogBot],
-              [axCogRight, axCogTop], [axCogLeft, axCogTop]],
-             color -> wineRed10);
-  );
+  // The cog itself signals the mode: wine red while editing,
+  // black otherwise. No background highlight.
   sz = if(isPortrait, 55, 65);
   drawtext([axCogCx, axCogCy], "⚙",
     align   -> "center", size -> sz,
-    color   -> [0, 0, 0],
+    color   -> if(editmode, wineRed, [0, 0, 0]),
     yoffset -> -sz * 0.27);
 );
 
@@ -614,6 +651,16 @@ pulsePoint(P, base, amp, freq) := (
 // APPLET LOGIC — applet-specific drawing and state
 // ════════════════════════════════════════════════════════════════
 
+sidebarWantedWpx = 160;   // wider than default (90) to fit button label
+sidebarWantedHpx = 110;   // taller than default (64) to fit button below slider
+
+// ---- Text-field backgrounds ------------------------------------
+// Flip any of these to false to make that label transparent (no white
+// box behind it). They feed the showBg argument of drawLabel().
+labelBgTitle = true;    // applet title (top-left)
+labelBgComps = true;    // a / b component labels (top-left)
+labelBgSkp   = true;    // scalar-product result next to B
+
 // Clamp B back into the visible area (called after α changes).
 clampMargin = 0.7;
 
@@ -637,11 +684,16 @@ clampBToScreen() := (
 );
 
 // Dashed ray for B (from O in direction B0). C is the far endpoint.
+// C sits at a FIXED world distance (rayLen), not the screen diagonal:
+// B is a PointOnSegment on O–C, so |b| = parameter · |O–C|. Tying that
+// length to the viewport made the dot product drift on every resize.
+// rayLen (50) exceeds the largest visible extent (~30 units at any
+// window size, since the scale is kept constant), so the dashed line
+// still runs to the screen edge; clampBToScreen keeps a dragged B
+// inside the visible area.
+rayLen = 50;
 adjustBRay() := (
-  regional(bounds, diag);
-  bounds = screenbounds();
-  diag   = |bounds_4, bounds_2|;
-  C.xy   = O + diag * (B0.xy - O);
+  C.xy = O + rayLen * (B0.xy - O);
   if(!editmode,
     draw(O, C, size -> 3, color -> wineRed, dashtype -> 3);
   );
@@ -651,16 +703,18 @@ adjustBRay() := (
 // via sb(px, py); width / height come from sbWidthPx / sbHeightPx so
 // the slider rescales with the sidebar.
 drawSidebar() := (
-  regional(pad, w, h);
-  // Pad along the label axis. Landscape labels sit above/below the
-  // endpoints, so a small pad suffices. Portrait labels sit to the
-  // sides ("180°" is ~50 px wide at fs 22) and need ~55 px.
+  regional(pad, w, h, btnH, btnPad, bL, bR, bB, bT,
+           slAngVal, projMouse, distMouse, mouseInBtn,
+           draggingSlider, vTrack, t, sl90, tickDir, tickLen);
+
   w = sbWidthPx();
   h = sbHeightPx();
+  btnH   = 36;
+  btnPad = 8;
 
   if(!isPortrait,
     pad = 14;
-    slAngS = sb(w/2, pad);
+    slAngS = sb(w/2, btnH + btnPad + 38);
     slAngE = sb(w/2, h - pad);
   ,
     pad = 55;
@@ -668,10 +722,45 @@ drawSidebar() := (
     slAngE = sb(w - pad, h/2);
   );
 
-  // On orientation flip, snap slAngP back onto the new track so
-  // angleDiff is preserved across rotations.
-  if(isPortrait != wasPortrait,
-    slAngP.xy = slAngS.xy + (angleDiff / 180°) * (slAngE.xy - slAngS.xy);
+  // Button bounds
+  bL = sb(btnPad,     btnPad).x;
+  bR = sb(w - btnPad, btnPad).x;
+  bB = sb(btnPad,     btnPad).y;
+  bT = sb(btnPad,     btnPad + btnH).y;
+
+  draggingSlider = false;
+
+  // Robust drag detection. CindyJS has no isdown() builtin, so the
+  // mouse-button state is tracked via the csmousedown / csmouseup
+  // event scripts in mouseDownFlag.
+  if(mouseDownFlag & |slAngE - slAngS| > 0.001,
+    projMouse  = ((mouse() - slAngS) * (slAngE - slAngS)) / |slAngE - slAngS|^2;
+    distMouse  = |mouse() - (slAngS + max(0, min(1, projMouse)) * (slAngE - slAngS))|
+                 * screenresolution();
+    mouseInBtn = mouse().x > bL & mouse().x < bR &
+                 mouse().y > bB & mouse().y < bT;
+
+    if(distMouse < 30 & !mouseInBtn,
+      draggingSlider = true;
+
+      // project mouse to track and move thumb
+      t = max(0, min(1, projMouse));
+
+      // snapping
+      snapVals   = [0.25, 0.5, 0.75];
+      snapRadius = 0.04;
+      forall(snapVals, s,
+        if(|t - s| < snapRadius, t = s);
+      );
+
+      slAngP.xy = slAngS + t * (slAngE - slAngS);
+      angleDiff = t * 180°;
+    );
+  );
+
+  // only mirror angleDiff when NOT dragging
+  if(!draggingSlider,
+    slAngP.xy = slAngS + (angleDiff / 180°) * (slAngE - slAngS);
   );
 
   slAngP.color = colorAngle;
@@ -679,40 +768,99 @@ drawSidebar() := (
   slAngP.size = 12;
 
   if(!isPortrait,
-    drawtext(slAngS, "0°",   yoffset -> -25, color -> colorAngle,
-             size -> 24, align -> "center");
-    drawtext(slAngE, "180°", yoffset ->  20, color -> colorAngle,
-             size -> 24, align -> "center");
+    drawtext(slAngS, "0°",   yoffset -> -25, color -> colorAngle, size -> 24, align -> "center");
+    drawtext(slAngE, "180°", yoffset ->  20, color -> colorAngle, size -> 24, align -> "center");
   ,
-    drawtext(slAngS, "0°",   xoffset -> -8, color -> colorAngle,
-             size -> 22, align -> "right");
-    drawtext(slAngE, "180°", xoffset ->  8, color -> colorAngle,
-             size -> 22, align -> "left");
+    drawtext(slAngS, "0°",   xoffset -> -8, color -> colorAngle, size -> 22, align -> "right");
+    drawtext(slAngE, "180°", xoffset ->  8, color -> colorAngle, size -> 22, align -> "left");
   );
 
-  // Project slAngP onto track, clamp to [0,1], snap to 45°/90°/135°.
-  slAngVal = ((slAngP.xy - slAngS.xy) * (slAngE.xy - slAngS.xy))
-             / |slAngE.xy - slAngS.xy|^2;
-  slAngVal = max(0, min(1, slAngVal));
-  snapVals   = [0.25, 0.5, 0.75];
-  snapRadius = 0.04;
-  forall(snapVals, s,
-    if(|slAngVal - s| < snapRadius, slAngVal = s);
+  // 90° marker at the slider midpoint (the snap position): a short tick
+  // across the track plus a label, placed clear of the moving α label
+  // (α sits to the right / above the thumb).
+  sl90    = 0.5 * (slAngS + slAngE);
+  tickDir = perpVec(slAngE - slAngS);
+  tickLen = 11 / screenresolution();
+  draw(sl90 - tickLen * tickDir, sl90 + tickLen * tickDir,
+       color -> colorAngle, size -> 4);
+  if(!isPortrait,
+    drawtext(sl90, "90°", xoffset -> -16, align -> "right",
+             color -> colorAngle, size -> 22);
+  ,
+    // Above the track (below would clash with the button row). Sits just
+    // under the α label, which only meets it when the angle really is 90°.
+    drawtext(sl90, "90°", yoffset -> 22, align -> "center",
+             color -> colorAngle, size -> 20);
   );
-  slAngP.xy = slAngS.xy + slAngVal * (slAngE.xy - slAngS.xy);
-  angleDiff = slAngVal * 180°;
 
-  // Custom α label: centered above the slider point in portrait
-  // (perpendicular to the horizontal track), right of the point in
-  // landscape (perpendicular to the vertical track).
   if(isPortrait,
-    drawtext(slAngP.xy, "$\alpha$",
-      yoffset -> 28, align -> "center",
-      size -> 22, color -> colorAngle);
+    drawtext(slAngP.xy, "$\alpha$", yoffset -> 28, align -> "center", size -> 22, color -> colorAngle);
   ,
-    drawtext(slAngP.xy, "$\alpha$",
-      xoffset -> 18, align -> "left",
-      size -> 24, color -> colorAngle);
+    drawtext(slAngP.xy, "$\alpha$", xoffset -> 18, align -> "left", size -> 24, color -> colorAngle);
+  );
+
+  // Button draw
+  fillpoly([[bL, bB], [bR, bB], [bR, bT], [bL, bT]], color -> petrol10);
+  drawtext([(bL + bR) / 2, (bB + bT) / 2], "Zufällige Position",
+           align -> "center", size -> 16, color -> petrol, yoffset -> -16 * 0.27);
+
+  btnRandL = bL; btnRandR = bR;
+  btnRandB = bB; btnRandT = bT;
+);
+
+// ----------------------------------------------------------------
+// Random start position
+// Picks a in Q1 with integer components in {1..4},
+// b-direction in Q1 with integer components in {1..3} (not parallel
+// to a → guarantees lattice points on the ray, angle ≠ 0° and < 90°).
+// B is placed at the first lattice point [px, py] via pendingBxy,
+// which is consumed in csdraw after adjustBRay() has updated bRay.
+// ----------------------------------------------------------------
+randomStart() := (
+  regional(ax, ay, px, py, aA, aB, t, qx, qy);
+
+  // Vector a: integer components in {1..4}
+  ax = 1 + floor(random() * 4);
+  ay = 1 + floor(random() * 4);
+
+  // b direction: integer components in {1..4}, angle diff >= 30°
+  aA = arctan2([ax, ay]);
+  px = 1; py = 2;
+  repeat(40,
+    qx = 1 + floor(random() * 4);
+    qy = 1 + floor(random() * 4);
+    if(|arctan2([qx, qy]) - aA| >= 30°, px = qx; py = qy);
+  );
+
+  // Guaranteed fallback for near-45° a vectors where the loop may fail
+  if(|arctan2([px, py]) - aA| < 30°,
+    if(aA >= 45°, px = 4; py = 1, px = 1; py = 4);
+  );
+
+  // Ensure b is counter-clockwise from a (angleDiff > 0)
+  if(py * ax < ay * px,
+    t = ax; ax = px; px = t;
+    t = ay; ay = py; py = t;
+  );
+
+  // Apply to geometry
+  A.xy      = [ax, ay];
+  aA        = arctan2([ax, ay]);
+  aB        = arctan2([px, py]);
+  angleDiff = aB - aA;
+
+  // Pre-position B0 and C so bRay is ready before the first csdraw
+  B0.xy = [cos(aB), sin(aB)];
+  C.xy  = 100 * [cos(aB), sin(aB)];
+
+  pendingBxy      = [px, py];
+  pendingSlAngVal = angleDiff / 180°;
+
+  // If the track is already known, move slAngP immediately so there is
+  // no one-frame lag. pendingSlAngVal + skipSnap still handle the startup
+  // case and prevent the 45°/90°/135° snap from rounding the new angle.
+  if(|slAngE - slAngS| > 0.001,
+    slAngP.xy = slAngS + pendingSlAngVal * (slAngE - slAngS);
   );
 );
 
@@ -737,10 +885,6 @@ drawVecsWithAngle() := (
 // Initial values
 // ----------------------------------------------------------------
 O.xy  = [0, 0];
-A.xy  = [4, 2];
-A0.xy = A / |A|;
-
-angleDiff = 30°;
 
 slAngS    = [0, 0];
 slAngE    = [0, 0];
@@ -753,6 +897,14 @@ A.labelled = false;
 
 editmode    = false;
 wasPortrait = false;
+
+btnRandL = 0; btnRandR = 0; btnRandT = 0; btnRandB = 0;
+mouseDownFlag   = false;   // tracked via csmousedown / csmouseup
+skipSnap        = false;
+pendingBxy      = [99999, 99999];
+pendingSlAngVal = -1;
+
+randomStart();
 
 resetclock();
 playAnimation();
@@ -817,52 +969,43 @@ wasPortrait = isPortrait;
 
 // 5) Mathematics.
 adjustBRay();
+if(pendingBxy_1 < 99990,
+  B.xy       = pendingBxy;
+  pendingBxy = [99999, 99999];
+);
 drawVecsWithAngle();
-clampBToScreen();
+// Only keep B on screen while the user is actually dragging it. Running
+// this every frame would let a resize (which shrinks the visible area)
+// pull B inward and permanently change |b| — and with it the dot
+// product. Gating on mouseDownFlag keeps a·b independent of window size.
+if(mouseDownFlag, clampBToScreen());
 
-// 6) Math text overlays anchored to the content area.
-//    Sizes match the original applet exactly: Skalarprodukt 24/30,
-//    components 30/32. Both lie on a white background so geometry
-//    passing behind stays hidden (Portrait overlap fix).
-fsSkp    = if(isPortrait, 30, 24);
-fsComps  = if(isPortrait, 32, 30);
-padCoord = 14 / screenresolution();
+// 6) Math text overlays via drawLabel: backgrounds are measured from
+//    the rendered text so they fit exactly at any size, and each one's
+//    white box can be toggled off through the labelBg* flags above.
+fsSkp   = if(isPortrait, 30, 24);
+fsComps = if(isPortrait, 32, 30);
+ovPad   = 8;   // background padding around the labels, px
 
+// Scalar-product result, floating just to the right of B.
 if(!editmode,
-  drawtext(B, tSkp, xoffset -> 20, yoffset -> -20, size -> fsSkp);
+  drawLabel(B.x + 18 / screenresolution(), B.y, tSkp,
+            fsSkp, [0, 0, 0], "left", "mid", labelBgSkp, ovPad);
 );
 
-regional(sr, zoneW, zoneH);
-sr = screenresolution();
-
+// a / b component labels in the top-left corner.
 if(!isPortrait,
-  zoneW = (if(!editmode, 9, 4.5)) * fsComps / sr;
-  zoneH = 2.8 * fsComps / sr;
-  fillpoly([[axContentLeft,         axContentTop - zoneH],
-            [axContentLeft + zoneW, axContentTop - zoneH],
-            [axContentLeft + zoneW, axContentTop],
-            [axContentLeft,         axContentTop]],
-           color -> white);
-  drawtext([axContentLeft + padCoord, axContentTop - padCoord],
+  drawLabel(axContentLeft, axContentTop,
     tVecA + if(!editmode, ",    " + tVecB, ""),
-    size    -> fsComps, color -> colorVector,
-    yoffset -> -fsComps);
+    fsComps, colorVector, "left", "top", labelBgComps, ovPad);
 ,
-  // Portrait stacks two pmatrices — each ~2.4·fs tall in render,
-  // matching the original 90 px ≈ 2.8·fs spacing.
-  zoneW = 4.5 * fsComps / sr;
-  zoneH = (if(!editmode, 6.2, 2.8)) * fsComps / sr;
-  fillpoly([[axContentLeft,         axContentTop - zoneH],
-            [axContentLeft + zoneW, axContentTop - zoneH],
-            [axContentLeft + zoneW, axContentTop],
-            [axContentLeft,         axContentTop]],
-           color -> white);
-  drawtext([axContentLeft + padCoord, axContentTop - padCoord],
-    tVecA, size -> fsComps, color -> colorVector, yoffset -> -fsComps);
+  // Portrait: stack a above b, b's box just below a's.
+  regional(bottomA);
+  bottomA = drawLabel(axContentLeft, axContentTop, tVecA,
+                      fsComps, colorVector, "left", "top", labelBgComps, ovPad);
   if(!editmode,
-    drawtext([axContentLeft + padCoord, axContentTop - padCoord],
-      tVecB, size -> fsComps, color -> colorVector,
-      yoffset -> -3.8 * fsComps);
+    drawLabel(axContentLeft, bottomA - 6 / screenresolution(), tVecB,
+              fsComps, colorVector, "left", "top", labelBgComps, ovPad);
   );
 );
 
@@ -879,10 +1022,24 @@ drawStatusOrCredits();
      CSMOUSEDOWN — cog button toggles edit mode
      =========================================================== -->
 <script id="csmousedown" type="text/x-cindyscript">
+mouseDownFlag = true;   // consumed by drawSidebar for slider dragging
 if(mouse().x > axCogLeft & mouse().x < axCogRight &
    mouse().y > axCogBot  & mouse().y < axCogTop,
   editmode = !editmode;
 );
+if(editmode &
+   mouse().x > btnRandL & mouse().x < btnRandR &
+   mouse().y > btnRandB & mouse().y < btnRandT,
+  randomStart();
+);
+</script>
+
+
+<!-- ===========================================================
+     CSMOUSEUP — clear the mouse-button state
+     =========================================================== -->
+<script id="csmouseup" type="text/x-cindyscript">
+mouseDownFlag = false;
 </script>
 
 
@@ -946,6 +1103,43 @@ var cdy = CindyJS({
     use: ["katex"],
     cinderella: {build: 2124, version: [3, 0, 2124]}
 });
+
+// ===========================================================
+// Responsive viewport: keep the grid-cell size identical in
+// portrait and landscape.
+//
+// CindyJS' visibleRect fits the rectangle with a uniform
+// min-scale, so a fixed landscape-shaped rect (17×10) gets a
+// much smaller scale on a tall portrait canvas — the squares
+// shrink. To avoid that we rebuild the visibleRect for the
+// current canvas so the scale (px per unit) always equals the
+// scale this device would use in landscape. Landscape and
+// desktop are unaffected; portrait simply zooms in to match.
+//
+// CindyJS re-reads ports[].transform on every (real) resize and
+// defers the recompute via requestAnimationFrame, while these
+// listeners run synchronously first — so the updated rect is
+// what CindyJS applies.
+// ===========================================================
+(function () {
+  // Design rectangle, mirrors visibleRect [-6.5, 7.5, 10.5, -2.5].
+  var DW = 17, DH = 10, CX = 2, CY = 2.5;
+  function applyResponsiveViewport() {
+    var el = document.getElementById("CSCanvas");
+    var W = (el && el.clientWidth)  || window.innerWidth;
+    var H = (el && el.clientHeight) || window.innerHeight;
+    if (!(W > 0 && H > 0)) return;
+    // Scale this device uses in landscape (long side ↔ width).
+    var sr = Math.min(Math.max(W, H) / DW, Math.min(W, H) / DH);
+    var halfW = W / sr / 2, halfH = H / sr / 2;
+    // Rect aspect matches the canvas, so min-fit reproduces sr exactly.
+    cdy.config.ports[0].transform[0].visibleRect =
+      [CX - halfW, CY + halfH, CX + halfW, CY - halfH];
+  }
+  applyResponsiveViewport();   // before CindyJS' deferred startup reads config
+  window.addEventListener("resize", applyResponsiveViewport);
+  window.addEventListener("orientationchange", applyResponsiveViewport);
+})();
 </script>
 </head>
 <body>
