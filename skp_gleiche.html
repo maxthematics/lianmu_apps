@@ -1,0 +1,1303 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Gleiche Skalarprodukte</title>
+
+<!--
+  Gleiche Skalarprodukte (LiAnMU / QuaMath Web Applets)
+  Authors: Max Hoffmann, Janine Herrmann, Olga Lomas & Lena Wessel
+  Context: QuaMath (DZLM + IPN, funded by KMK) | LiAnMU | Paderborn University
+  Version: v2026-06-05
+  License: MIT (see LICENSE)
+-->
+
+<!-- ===========================================================
+     CSS: canvas fills the entire viewport, no scrolling
+     =========================================================== -->
+<style>
+  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
+  /* 100dvh = dynamic viewport height; on mobile Safari/Chrome this
+     excludes the bottom UI bar automatically. Older browsers fall
+     back to 100vh and the canvas may sit behind the bar. */
+  #CSCanvas  { position: fixed; inset: 0; width: 100vw; height: 100vh; height: 100dvh; }
+  *          { margin: 0; padding: 0; }
+  #CSConsole {
+    background-color: #FAFAFA; border-top: 1px solid #333;
+    bottom: 0; height: 200px; overflow-y: scroll;
+    position: fixed; width: 100%;
+  }
+</style>
+
+<link rel="stylesheet" href="https://cindyjs.org/dist/v0.8/CindyJS.css">
+<script type="text/javascript" src="https://cindyjs.org/dist/v0.8/Cindy.js"></script>
+
+
+<!-- ===========================================================
+     CSINIT — one-time initialization
+     =========================================================== -->
+<script id="csinit" type="text/x-cindyscript">
+
+// ════════════════════════════════════════════════════════════════
+// APPLET CONFIG — edit per applet
+// ════════════════════════════════════════════════════════════════
+appletTitle        = "Gleiche Skalarprodukte";
+appletAuthors      = "Max Hoffmann, Janine Herrmann, Olga Lomas & Lena Wessel";
+appletAffiliations = "QuaMath (DZLM + IPN, gef. v. KMK) | LiAnMU | Universität Paderborn";
+appletContact      = "max.hoffmann@math.uni-paderborn.de";
+appletVersion      = "v2026-06-05";
+appletLicense      = "MIT License";
+
+
+// ════════════════════════════════════════════════════════════════
+// PLATFORM SECTION — shared framework, identical across applets
+// Do not edit unless you are updating the framework.
+// ════════════════════════════════════════════════════════════════
+
+// ----------------------------------------------------------------
+// Color palette (RGB, normalized to 0.0–1.0)
+// Primary: Petrol | Secondary: Orange, Gray | Tertiary: Wine Red
+// Context: Ochre
+// ----------------------------------------------------------------
+white = [1, 1, 1];
+
+petrol100 = [50, 122, 134] / 255;
+petrol75  = [114, 143, 153] / 255;
+petrol50  = [152, 171, 178] / 255;
+petrol25  = [192, 202, 206] / 255;
+petrol10  = [212, 219, 222] / 255;
+petrol    = petrol100;
+
+orange100 = [248, 180, 79]  / 255;
+orange75  = [242, 184, 107] / 255;
+orange50  = [246, 201, 141] / 255;
+orange25  = [249, 221, 182] / 255;
+orange10  = [253, 245, 233] / 255;
+orange    = orange100;
+
+wineRed100 = [164, 65, 104]  / 255;
+wineRed75  = [162, 93, 117]  / 255;
+wineRed50  = [182, 128, 146] / 255;
+wineRed25  = [202, 162, 174] / 255;
+wineRed10  = [227, 206, 213] / 255;
+wineRed    = wineRed100;
+
+gray100 = [115, 115, 115] / 255;
+gray75  = [135, 136, 136] / 255;
+gray50  = [164, 166, 166] / 255;
+gray25  = [227, 228, 228] / 255;
+gray10  = [239, 239, 239] / 255;
+gray    = gray100;
+
+ochre100 = [205, 185, 135] / 255;
+ochre75  = [201, 188, 157] / 255;
+ochre50  = [214, 204, 179] / 255;
+ochre25  = [227, 221, 203] / 255;
+ochre10  = [241, 238, 227] / 255;
+ochre    = ochre100;
+
+// ----------------------------------------------------------------
+// Concept colors — semantic palette for mathematical objects.
+// Per-applet overrides allowed in the APPLET LOGIC section.
+// ----------------------------------------------------------------
+colorVector = petrol100;   // arrows, vector labels, components
+colorPoint  = wineRed100;  // free / movable points
+colorScalar = gray100;     // numeric scalars, lengths, dot products
+colorAngle  = orange100;   // angle arcs and labels
+colorLine   = gray75;      // lines, rays, segments
+colorAccent = wineRed100;  // highlights, edit-mode chrome
+colorChrome = gray100;      // titles, credits, neutral UI text
+
+// ----------------------------------------------------------------
+// Coordinate grid. The framework draws the grid itself (drawGrid),
+// so its colour is fully configurable here. The port's `grid` value
+// still drives drag-snapping and should match gridSpacing.
+//   gridColor : line colour, 0 = black … 1 = white.
+//               higher = fainter, lower = stronger.
+// ----------------------------------------------------------------
+gridColor   = [0.80, 0.81, 0.81];   // ≈ 20% gray, a touch stronger than CindyJS' faint default
+gridSpacing = 0.5;                  // world units between grid lines (match the port `grid`)
+gridWidth   = 1;                    // line width in px
+
+// ----------------------------------------------------------------
+// Typography (point sizes). Each role: landscape / portrait.
+// Mobile sizes are ≥ landscape: a phone is held closer, but physical
+// readability still requires equal or larger glyphs, never smaller.
+// Applets may override locally if the visual hierarchy demands it
+// (see fsSkp / fsComps in this applet's csdraw).
+// ----------------------------------------------------------------
+fontTitle     = 24;   fontTitleP     = 26;
+fontStatus    = 18;   fontStatusP    = 18;
+fontCredits   = 13;   fontCreditsP   = 12;
+fontMathBig   = 28;   fontMathBigP   = 32;   // main displayed quantity
+fontMathMed   = 22;   fontMathMedP   = 26;   // secondary labels
+fontMathSmall = 16;   fontMathSmallP = 18;   // helper labels
+
+// ----------------------------------------------------------------
+// Layout pixel budget. All anchors derive from these constants.
+// Suffix P denotes portrait variant.
+// ----------------------------------------------------------------
+layoutOuterPad     = 16;   layoutOuterPadP     = 10;
+layoutHeaderHpx    = 56;   layoutHeaderHpxP    = 48;
+layoutFooterHpx    = 60;   layoutFooterHpxP    = 56;   // status OR credits
+layoutUnitHpx      = 26;   layoutUnitHpxP      = 24;   // unit-segment row
+layoutGapPx        = 8;    layoutGapPxP        = 6;
+layoutBrowserBarPx = 0;    layoutBrowserBarPxP = 0;    // handled by 100dvh CSS
+layoutSidebarWpx   = 90;                               // landscape: default width
+layoutSidebarHpx   = 64;                               // portrait:  default height
+layoutSidebarMinWpx = 60;  layoutSidebarMinHpx = 50;   // framework minima
+layoutSidebarMaxWpx = 240; layoutSidebarMaxHpx = 200;  // framework maxima
+layoutSidebarMaxFrac = 0.35;                           // never larger than this
+                                                       // fraction of the outer rect
+layoutCogBtnPx     = 40;   layoutCogBtnPxP     = 36;
+
+// ----------------------------------------------------------------
+// Per-frame UI state
+// ----------------------------------------------------------------
+// The sidebar follows the cog (= editmode) by default. To override,
+// set sidebarFollowsEditmode = false and manage sidebarVisible
+// manually in csdraw before calling platformBeginFrame().
+sidebarFollowsEditmode = true;
+sidebarVisible         = false;
+
+// Sidebar content size request (in pixels). The framework clamps to
+// [layoutSidebarMin…, layoutSidebarMax…] and to layoutSidebarMaxFrac
+// of the outer rect. Set per applet in csinit, or per frame in csdraw
+// before platformBeginFrame() to make the sidebar grow with content.
+sidebarWantedWpx = layoutSidebarWpx;
+sidebarWantedHpx = layoutSidebarHpx;
+
+// Status state — empty statusLines means: show credits in the footer row.
+statusLines  = [];
+statusFg     = wineRed100;
+statusBorder = wineRed100;
+statusFill   = wineRed10;
+
+// ----------------------------------------------------------------
+// Status API
+// Built-in modes: "hint" (petrol), "alert" (wineRed),
+//                 "info" (gray), "success" (ochre).
+// Use setStatusCustom() to pick colors directly.
+// `lines` must be a list of strings (one entry per visual line).
+// ----------------------------------------------------------------
+setStatus(lines, mode) := (
+  statusLines = lines;
+  if(mode == "hint",
+    statusFg     = petrol100;
+    statusBorder = petrol100;
+    statusFill   = petrol10;
+  );
+  if(mode == "alert",
+    statusFg     = wineRed100;
+    statusBorder = wineRed100;
+    statusFill   = wineRed10;
+  );
+  if(mode == "info",
+    statusFg     = gray100;
+    statusBorder = gray75;
+    statusFill   = gray10;
+  );
+  if(mode == "success",
+    statusFg     = ochre100;
+    statusBorder = ochre100;
+    statusFill   = ochre10;
+  );
+);
+
+setStatusCustom(lines, fg, border, fill) := (
+  statusLines  = lines;
+  statusFg     = fg;
+  statusBorder = border;
+  statusFill   = fill;
+);
+
+clearStatus() := ( statusLines = []; );
+
+// ----------------------------------------------------------------
+// Anchor computation. Call once at the top of csdraw, then read
+// the ax* globals from every drawing function.
+//
+// Layout (top to bottom):
+//   ┌───────────────────────────────────┐
+//   │ TITLE                       ⚙     │  header
+//   ├───────────────────────────────────┤
+//   │           CONTENT                 │  content
+//   │                  ┌────────┐       │
+//   │                  │sidebar │       │  sidebar (dynamic)
+//   │ unit ─                            │  unit row
+//   │ STATUS  *or*  credits             │  footer
+//   └───────────────────────────────────┘
+// ----------------------------------------------------------------
+computeAnchors() := (
+  regional(b, sr, oPad, hH, fH, uH, gap, bbPx, sbW, sbH, cogPx, cogHalf);
+
+  b      = screenbounds();
+  xmin   = b_1_1;  xmax = b_2_1;
+  ymin   = b_3_2;  ymax = b_1_2;
+  width  = xmax - xmin;
+  height = ymax - ymin;
+  sr     = screenresolution();
+  isPortrait = height > width;
+
+  oPad = if(isPortrait, layoutOuterPadP,     layoutOuterPad)     / sr;
+  hH   = if(isPortrait, layoutHeaderHpxP,    layoutHeaderHpx)    / sr;
+  fH   = if(isPortrait, layoutFooterHpxP,    layoutFooterHpx)    / sr;
+  uH   = if(isPortrait, layoutUnitHpxP,      layoutUnitHpx)      / sr;
+  gap  = if(isPortrait, layoutGapPxP,        layoutGapPx)        / sr;
+  bbPx = if(isPortrait, layoutBrowserBarPxP, layoutBrowserBarPx) / sr;
+  // Clamp the requested sidebar size to framework min/max and to
+  // a fraction of the outer rectangle. Done before axLeft etc. are
+  // used by the sidebar branches below.
+  sbW = max(layoutSidebarMinWpx,
+            min(sidebarWantedWpx,
+                min(layoutSidebarMaxWpx,
+                    layoutSidebarMaxFrac * (xmax - xmin) * sr))) / sr;
+  sbH = max(layoutSidebarMinHpx,
+            min(sidebarWantedHpx,
+                min(layoutSidebarMaxHpx,
+                    layoutSidebarMaxFrac * (ymax - ymin) * sr))) / sr;
+
+  // Outer rectangle (inside outer padding)
+  axLeft   = xmin + oPad;
+  axRight  = xmax - oPad;
+  axTop    = ymax - oPad;
+  axBottom = ymin + bbPx + oPad;
+
+  // Header (title left, cog right)
+  axHeaderTop    = axTop;
+  axHeaderBottom = axTop - hH;
+  axHeaderCy     = 0.5 * (axHeaderTop + axHeaderBottom);
+  axTitleLeft    = axLeft;
+  axTitleCy      = axHeaderCy;
+
+  // Cog button (square hitbox, right-aligned in header)
+  cogPx   = if(isPortrait, layoutCogBtnPxP, layoutCogBtnPx);
+  cogHalf = cogPx / 2 / sr;
+  axCogCx    = axRight - cogHalf;
+  axCogCy    = axHeaderCy;
+  axCogLeft  = axCogCx - cogHalf;
+  axCogRight = axCogCx + cogHalf;
+  axCogTop   = axCogCy + cogHalf;
+  axCogBot   = axCogCy - cogHalf;
+
+  // Footer (status box OR credits, never both)
+  axFooterTop   = axBottom + fH;
+  axFooterBot   = axBottom;
+  axFooterCy    = 0.5 * (axFooterTop + axFooterBot);
+  axFooterLeft  = axLeft;
+  axFooterRight = axRight;
+
+  // Unit row (directly above footer)
+  axUnitBot  = axFooterTop + gap;
+  axUnitTop  = axUnitBot + uH;
+  axUnitCy   = 0.5 * (axUnitTop + axUnitBot);
+  axUnitLeft = axLeft;
+
+  // Content + sidebar — orientation- and visibility-dependent
+  axContentTop  = axHeaderBottom - gap;
+  axContentLeft = axLeft;
+
+  if(isPortrait,
+    axSidebarLeft  = axLeft;
+    axSidebarRight = axRight;
+    if(sidebarVisible,
+      axSidebarBot    = axUnitTop + gap;
+      axSidebarTop    = axSidebarBot + sbH;
+      axContentRight  = axRight;
+      axContentBottom = axSidebarTop + gap;
+    ,
+      axSidebarBot    = axUnitTop;
+      axSidebarTop    = axUnitTop;   // degenerate (height 0)
+      axContentRight  = axRight;
+      axContentBottom = axUnitTop + gap;
+    );
+  ,
+    axSidebarTop = axContentTop;
+    axSidebarBot = axUnitTop + gap;
+    if(sidebarVisible,
+      axSidebarRight  = axRight;
+      axSidebarLeft   = axRight - sbW;
+      axContentRight  = axSidebarLeft - gap;
+      axContentBottom = axUnitTop + gap;
+    ,
+      axSidebarLeft   = axRight;
+      axSidebarRight  = axRight;       // degenerate (width 0)
+      axContentRight  = axRight;
+      axContentBottom = axUnitTop + gap;
+    );
+  );
+
+  axContentCx = 0.5 * (axContentLeft + axContentRight);
+  axContentCy = 0.5 * (axContentTop  + axContentBottom);
+);
+
+// ----------------------------------------------------------------
+// Sidebar local coordinate system
+//
+// Inside drawSidebar(), use these helpers to position content with
+// (0, 0) at the bottom-left corner of the sidebar, measured in
+// pixels. The framework clamps the sidebar size based on
+// sidebarWantedWpx / sidebarWantedHpx, so use sbWidthPx() /
+// sbHeightPx() to size things relative to the actual sidebar.
+// ----------------------------------------------------------------
+sb(px, py)  := [axSidebarLeft + px / screenresolution(),
+                axSidebarBot  + py / screenresolution()];
+sbWidthPx()  := (axSidebarRight - axSidebarLeft) * screenresolution();
+sbHeightPx() := (axSidebarTop   - axSidebarBot)  * screenresolution();
+
+// Applet hook. Override in the APPLET LOGIC section.
+// Called automatically by csdraw whenever sidebarVisible is true.
+drawSidebar() := ( );
+
+// ----------------------------------------------------------------
+// Frame entry point. Call as the first line of csdraw.
+// Syncs sidebarVisible to editmode (when sidebarFollowsEditmode is
+// true) and recomputes all anchors.
+// ----------------------------------------------------------------
+platformBeginFrame() := (
+  if(sidebarFollowsEditmode, sidebarVisible = editmode);
+  computeAnchors();
+  drawGrid();
+);
+
+// ----------------------------------------------------------------
+// Coordinate grid, drawn by the framework (opaque, so its colour is
+// fully controllable — see gridColor). Spans the whole visible region
+// at gridSpacing. CindyJS' built-in grid still renders underneath for
+// snapping but is covered by these lines.
+// ----------------------------------------------------------------
+drawGrid() := (
+  regional(x0, x1, y0, y1, nx, ny);
+  x0 = floor(xmin / gridSpacing) * gridSpacing;
+  x1 = ceil (xmax / gridSpacing) * gridSpacing;
+  y0 = floor(ymin / gridSpacing) * gridSpacing;
+  y1 = ceil (ymax / gridSpacing) * gridSpacing;
+  nx = round((x1 - x0) / gridSpacing);
+  ny = round((y1 - y0) / gridSpacing);
+  repeat(nx + 1, i,
+    draw([x0 + (i - 1) * gridSpacing, y0], [x0 + (i - 1) * gridSpacing, y1],
+         color -> gridColor, size -> gridWidth));
+  repeat(ny + 1, i,
+    draw([x0, y0 + (i - 1) * gridSpacing], [x1, y0 + (i - 1) * gridSpacing],
+         color -> gridColor, size -> gridWidth));
+);
+
+// ----------------------------------------------------------------
+// Label with an exactly-fitting background, measured from the ACTUAL
+// rendered text. pixelsize(text, size -> fs) returns
+// [width, ascent, descent] in px — measured the same way (and with the
+// same anchor) drawtext renders, so it is correct for KaTeX too. The
+// background therefore fits and stays centred at any font size, instead
+// of relying on hand-tuned multipliers.
+//
+//   x, y     – anchor point in world coordinates
+//   halign   – "left" | "center" | "right"
+//   valign   – "top" (y = box top) | "mid" (y = box centre)
+//              | "base" (y = text baseline)
+//   showBg   – true → white background; false → transparent (no box).
+//              Drive this from a per-field flag so an applet can switch
+//              any label's background on/off in one place.
+//   padPx    – uniform padding around the text, px
+//   returns  – the box bottom y (so labels can be stacked)
+// ----------------------------------------------------------------
+drawLabel(x, y, text, fs, textcol, halign, valign, showBg, padPx) := (
+  regional(sr, m, w, asc, desc, ax, ay, l, r, bb, tt);
+  sr  = screenresolution();
+  m   = pixelsize(text, size -> fs);
+  w   = m_1; asc = m_2; desc = m_3;
+  ax  = x + if(halign == "center", -w / (2 * sr),
+           if(halign == "right",   -w / sr, 0));
+  ay  = if(valign == "top", y - (padPx + asc) / sr,
+        if(valign == "mid", y + (desc - asc) / (2 * sr),
+                            y));
+  l   = ax - padPx / sr;
+  r   = ax + (w + padPx) / sr;
+  bb  = ay - (desc + padPx) / sr;
+  tt  = ay + (asc  + padPx) / sr;
+  if(showBg, fillpoly([[l, bb], [r, bb], [r, tt], [l, tt]], color -> white));
+  drawtext([ax, ay], text, size -> fs, color -> textcol, align -> "left");
+  bb
+);
+
+// Backward-compatible wrapper: pos-anchored, vertically centred, always
+// shows a white background. Kept so plain callers keep working while
+// now being measured/adaptive (bgcol is assumed white).
+drawTextWithBg(pos, text, fs, col, bgcol, padPx, alignment) :=
+  drawLabel(pos.x, pos.y, text, fs, col, alignment, "mid", true, padPx);
+
+// ----------------------------------------------------------------
+// Chrome drawing
+// ----------------------------------------------------------------
+
+drawTitle() := (
+  regional(fs);
+  fs = if(isPortrait, fontTitleP, fontTitle);
+  drawLabel(axTitleLeft, axTitleCy, appletTitle,
+            fs, colorChrome, "left", "mid", labelBgTitle, 6);
+);
+
+drawCog() := (
+  regional(sz);
+  // The cog itself signals the mode: wine red while editing,
+  // black otherwise. No background highlight.
+  sz = if(isPortrait, 55, 65);
+  drawtext([axCogCx, axCogCy], "⚙",
+    align   -> "center", size -> sz,
+    color   -> if(editmode, wineRed, [0, 0, 0]),
+    yoffset -> -sz * 0.27);
+);
+
+// Unit segment snapped to the 0.5 grid so both endpoints land on
+// grid intersections and the segment overlaps a horizontal grid line.
+drawUnit() := (
+  regional(uX, uY);
+  uX = ceil(axUnitLeft / 0.5) * 0.5;
+  uY = round(axUnitCy   / 0.5) * 0.5;
+  draw([uX, uY], [uX + 1, uY], color -> gray, size -> 5);
+  drawtext([uX + 0.5, uY], "1",
+    yoffset -> 10, color -> gray, size -> 16,
+    align   -> "center");
+);
+
+drawStatusBox() := (
+  regional(sr, fs, padPx, lineHpx, n, totalH, boxL, boxR, boxT, boxB,
+           cx, cy, i, ypx);
+  sr      = screenresolution();
+  fs      = if(isPortrait, fontStatusP, fontStatus);
+  padPx   = 10;
+  lineHpx = fs * 1.2;
+  n       = length(statusLines);
+  totalH  = (n * lineHpx + 2 * padPx) / sr;
+
+  cx     = 0.5 * (axFooterLeft + axFooterRight);
+  cy     = axFooterCy;
+  boxL   = axFooterLeft  + padPx / sr;
+  boxR   = axFooterRight - padPx / sr;
+  boxT   = cy + totalH / 2;
+  boxB   = cy - totalH / 2;
+  if(boxT > axFooterTop, boxT = axFooterTop);
+  if(boxB < axFooterBot, boxB = axFooterBot);
+
+  fillpoly([[boxL, boxB], [boxR, boxB], [boxR, boxT], [boxL, boxT]],
+           color -> statusFill);
+  drawpoly([[boxL, boxB], [boxR, boxB], [boxR, boxT], [boxL, boxT]],
+           color -> statusBorder, size -> 1.5);
+
+  // All lines anchored at the box center cy; symmetric yoffsets
+  // stack them. The -0.27*fs term shifts the baseline down so the
+  // visual glyph centers (not the baselines) land on the line grid.
+  forall(1..n, i,
+    ypx = (n + 1 - 2 * i) * lineHpx / 2 - 0.27 * fs;
+    drawtext([cx, cy], statusLines_i,
+      align -> "center", size -> fs, color -> statusFg, yoffset -> ypx);
+  );
+);
+
+drawCredits() := (
+  regional(sr, fs, dy, edge);
+  sr   = screenresolution();
+  fs   = if(isPortrait, fontCreditsP, fontCredits);
+  dy   = (fs + 4) / sr;
+  edge = axFooterRight;
+  drawtext([edge, axFooterCy + dy], appletAuthors,
+    size -> fs, color -> colorChrome, align -> "right");
+  drawtext([edge, axFooterCy], appletAffiliations,
+    size -> fs, color -> colorChrome, align -> "right");
+  drawtext([edge, axFooterCy - dy],
+    appletContact + "  |  " + appletVersion + "  |  " + appletLicense,
+    size -> fs, color -> colorChrome, align -> "right");
+);
+
+drawStatusOrCredits() := (
+  if(length(statusLines) > 0,
+    drawStatusBox();
+  ,
+    drawCredits();
+  );
+);
+
+// ----------------------------------------------------------------
+// Math primitives
+// ----------------------------------------------------------------
+
+// Perpendicular unit vector (90° rotation, normalized)
+perpVec(v) := [-v.y, v.x] / |v|;
+
+// Vector arrows -------------------------------------------------
+// vecSettings = [labelOffsetPx, shaftThickness, arrowheadWidthFactor, arrowheadHeightFactor]
+//   _1: label distance from shaft (px; positive = left, negative = right)
+//   _2: half shaft width (in coord units)
+//   _3: arrowhead width multiplier (relative to 2 * shaft width)
+//   _4: arrowhead height multiplier (relative to 2 * shaft width)
+vecLabelSize = 20;
+vecSettingsL = [ 20, 0.05, 4, 4.0];
+vecSettingsR = [-30, 0.05, 4, 4.0];
+
+veclabel(start, end, name, settings, col) := (
+  regional(v, p, lab, pos, sep, thick);
+  sep   = settings_1;
+  thick = settings_2;
+  lab   = "$\vec{" + name + "}$";
+  v     = end - start;
+  p     = perpVec(v);
+  pos   = 0.5 * (start + end) + (sep / screenresolution() + thick) * p;
+  drawtext(pos, lab, color -> col, size -> vecLabelSize);
+);
+
+drawArrow(A, B, name, settings, col) := (
+  regional(v, u, p, sT, hWF, hHF, hHalfW, hH, base, hPoly, sPoly);
+  sT  = settings_2;
+  hWF = settings_3;
+  hHF = settings_4;
+  v   = B - A;
+  if(|v| > 10^(-5),
+    u      = v / |v|;
+    p      = perpVec(v);
+    hHalfW = sT * hWF;
+    hH     = 2 * sT * hHF;
+    base   = B - hH * u;
+    hPoly  = polygon((B, base + p * hHalfW, base - p * hHalfW));
+    sPoly  = polygon((A + p * sT, A - p * sT, base - p * sT, base + p * sT));
+    fill(hPoly, color -> col);
+    fill(sPoly, color -> col);
+    veclabel(A, B, name, settings, col);
+  );
+);
+
+// Angles --------------------------------------------------------
+// drawAngle(P1, P2, C, r, col, alpha, label, labelPos, labelCol)
+//   P1, P2   – two points defining the legs (rays C→P1 and C→P2)
+//   C        – vertex
+//   r        – arc radius (coord units)
+//   col      – stroke color
+//   alpha    – fill blend toward white (0 = no fill, 1 = white)
+//   label    – LaTeX string without $…$, or "VAL" for the numeric value
+//   labelPos – label distance factor along the bisector (1.0 = on arc)
+//   labelCol – label color
+//
+// Convenience wrapper drawAngleC() uses the concept defaults
+// (colorAngle, alpha 0.9, labelPos 0.7) — see APPLET LOGIC.
+angLabelSize = 20;
+angArcSize   = 2;
+
+drawAngle(P1, P2, C, r, col, alpha, label, labelPos, labelCol) := (
+  regional(a1, a2, sweep, arcRes, arcPoints, labelPt, labelDir);
+  a1    = arctan2(P1 - C);
+  sweep = arccos((P1 - C) * (P2 - C) / (|P1 - C| * |P2 - C|));
+  a2    = a1 + sweep;
+  if(sweep > 1° & r > 0.01,
+    arcRes    = max(5, round(sweep * 30));
+    arcPoints = [C];
+    repeat(arcRes, start -> a1, stop -> a2, a,
+      arcPoints = arcPoints ++ [gauss(exp(i * a) * r * 25 / screenresolution()) + C]
+    );
+    arcPoints = arcPoints ++ [C.xy];
+    if(alpha > 0,
+      fillpoly(arcPoints, color -> col * (1 - alpha) + (1, 1, 1) * alpha)
+    );
+    connect(arcPoints, size -> angArcSize, border -> false, color -> col);
+    labelDir = gauss(exp(i * (a1 + a2) / 2));
+    labelPt  = C + labelDir * (labelPos * r * 25 / screenresolution()) + (0, -0.1);
+    if(label == "VAL",
+      drawtext(labelPt, (a2 - a1), align -> "center", tex -> true, color -> labelCol),
+      drawtext(labelPt, "$" + label + "$",
+        align -> "center", tex -> true, color -> labelCol, size -> angLabelSize)
+    );
+  );
+);
+
+// drawAngleC(P1, P2, C, r, label)
+// Convenience wrapper using concept defaults.
+drawAngleC(P1, P2, C, r, label) :=
+  drawAngle(P1, P2, C, r, colorAngle, 0.9, label, 0.7, colorAngle);
+
+// Vector LaTeX printer ------------------------------------------
+// texVec(name, vec)            → digits = 2
+// texVec(name, vec, digits)    → custom precision
+// Renders $\vec{name} = \begin{pmatrix} … \end{pmatrix}$ when the
+// rounded values are exact, otherwise \approx.
+// Works for any dimension n.
+texVec(name, v) := texVec(name, v, 2);
+texVec(name, v, digits) := (
+  regional(scale, n, rounded, exact, body, rel, tol);
+  scale   = 10^digits;
+  n       = length(v);
+  tol     = 5 * 10^(-digits - 2);
+  rounded = apply(1..n, k, round(scale * v_k) / scale);
+  exact   = forall(1..n, k, |rounded_k - v_k| < tol);
+  rel     = if(exact, "=", "\approx");
+  body    = "";
+  forall(1..n, k,
+    body = body + rounded_k;
+    if(k < n, body = body + " \\ ");
+  );
+  // \! pulls the pmatrix slightly closer to the relation symbol so
+  // the gap matches "ä ≈ (…)" rather than the wider default LaTeX
+  // spacing around \approx.
+  "$\vec{" + name + "} " + rel + "\!\, \begin{pmatrix} " + body + " \end{pmatrix}$"
+);
+
+// Point pulse animation -----------------------------------------
+// pulsePoint(P)                       — defaults: base = 5, amp = 3.2, freq = 4
+// pulsePoint(P, base, amp, freq)      — explicit
+// Call from csmove. Sets P.size to a sin² oscillation.
+pulsePoint(P) := pulsePoint(P, 5, 3.2, 4);
+pulsePoint(P, base, amp, freq) := (
+  P.size = base + amp * sin(freq * seconds())^2;
+);
+
+
+// ════════════════════════════════════════════════════════════════
+// APPLET LOGIC — applet-specific drawing and state
+// ════════════════════════════════════════════════════════════════
+
+// Persistent sidebar: this applet shows controls in BOTH modes
+// (edit = set up the situation a, b; display = staged exploration via
+// the buttons c → d → stamps), so the sidebar does NOT follow the cog.
+// We pin it visible here and manage its content per mode in drawSidebar.
+sidebarFollowsEditmode = false;
+sidebarVisible         = true;
+sidebarWantedWpx       = 196;   // landscape width: fits the longest button label
+sidebarWantedHpx       = 132;   // portrait height: a row of staged buttons
+
+// Taller footer: unlike the sibling applets, this one always shows a work
+// instruction, so the footer is split into the instruction box (top) and
+// the credits (bottom) — both stacked (see drawFooterCombined). These
+// override the platform defaults (60 / 56).
+layoutFooterHpx  = 110;  layoutFooterHpxP  = 124;
+creditsStripPx   = 42;   // bottom strip of the footer reserved for credits
+
+// ---- Text-field backgrounds ------------------------------------
+// Flip any of these to false to make that label transparent (no white
+// box behind it). They feed the showBg argument of drawLabel().
+labelBgTitle = true;    // applet title (top-left)
+labelBgComps = true;    // a / b component labels (top-left)
+labelBgSkp   = true;    // scalar-product results at the vector tips
+
+// Faint petrol for the stamped copies of d (the accumulating family of
+// vectors that all share the scalar product a·b).
+colorStamp = petrol50;
+
+// Work instructions (the task texts) use the yellow/orange tone, set
+// apart from the wine-red edit-mode banner and the petrol/black math.
+setWork(lines) := setStatusCustom(lines, orange100, orange100, orange10);
+
+// Footer for this applet: the work-instruction box on top and the credits
+// (as in the sibling applets) on a small strip below. The (enlarged) footer
+// band is split in two; the platform's drawStatusBox / drawCredits are
+// reused by temporarily pointing the axFooter* anchors at each sub-strip.
+drawFooterCombined() := (
+  regional(sr, splitY, fTop, fBot, fCy, boxBot);
+  sr   = screenresolution();
+  fTop = axFooterTop;  fBot = axFooterBot;  fCy = axFooterCy;
+  splitY = fBot + creditsStripPx / sr;        // top of the credits strip
+  boxBot = splitY + 8 / sr;                    // small gap below the box
+  // Credits in the bottom strip.
+  axFooterBot = fBot;  axFooterTop = splitY;  axFooterCy = 0.5 * (fBot + splitY);
+  drawCredits();
+  // Work-instruction box in the upper strip (only when a status is set),
+  // ending a gap above the credits so the two never touch.
+  axFooterBot = boxBot;  axFooterTop = fTop;  axFooterCy = 0.5 * (boxBot + fTop);
+  if(length(statusLines) > 0, drawStatusBox());
+  // Restore the full-footer anchors.
+  axFooterTop = fTop;  axFooterBot = fBot;  axFooterCy = fCy;
+);
+
+// ----------------------------------------------------------------
+// Snapping onto the (hidden) locus g
+// g is the line through B perpendicular to a. Every vector whose tip
+// lies on g has the same scalar product with a as b does. While a probe
+// (C or D) sits within snapDelta (world units) of g, its a-parallel
+// offset to B is removed → a·probe = a·b exactly. g is never drawn; the
+// learner discovers it through the snapping and the stamps.
+// ----------------------------------------------------------------
+snapDelta = 0.12;
+
+snapToG(P) := (
+  regional(ah, off);
+  if(|A - O| > 0.0001,
+    ah  = (A - O) / |A - O|;
+    off = (P - B) * ah;              // signed component along a
+    if(|off| < snapDelta, P.xy = P.xy - off * ah);
+  );
+);
+
+// Snap a point onto the coordinate grid (gridSpacing). Used for a and b
+// in edit mode only — the port's own snapping stays off (snap:false) so the
+// probes c/d move freely in display mode and snap only onto the locus g.
+snapToGrid(P) := (
+  P.xy = [round(P.x / gridSpacing) * gridSpacing,
+          round(P.y / gridSpacing) * gridSpacing];
+);
+
+// scalarProduct of (P - O) with a = (A - O)
+skpWithA(P) := (P - O) * (A - O);
+
+// ----------------------------------------------------------------
+// Stamps (Abdruck): record the current position of D, draw the whole
+// family behind the live arrows as faint, label-less petrol arrows.
+// ----------------------------------------------------------------
+stamps = [];
+stamp()        := ( stamps = stamps ++ [D.xy]; );
+remLastStamp() := ( if(stamps != [], stamps = stamps -- [stamps_(-1)]); );
+
+vecSettingsStamp = [0, 0.035, 4, 4.0];
+
+// Same head/shaft geometry as drawArrow, but without a vector label.
+drawArrowPlain(P, Q, settings, col) := (
+  regional(v, u, p, sT, hWF, hHF, hHalfW, hH, base, hPoly, sPoly);
+  sT  = settings_2;  hWF = settings_3;  hHF = settings_4;
+  v   = Q - P;
+  if(|v| > 10^(-5),
+    u      = v / |v|;
+    p      = perpVec(v);
+    hHalfW = sT * hWF;
+    hH     = 2 * sT * hHF;
+    base   = Q - hH * u;
+    hPoly  = polygon((Q, base + p * hHalfW, base - p * hHalfW));
+    sPoly  = polygon((P + p * sT, P - p * sT, base - p * sT, base + p * sT));
+    fill(hPoly, color -> col);
+    fill(sPoly, color -> col);
+  );
+);
+
+// Draw the stamped family. When labelStamps is on, each arrow gets the
+// value of its scalar product with a (just the number) written at its
+// tip, in the (faint) arrow colour and a touch smaller than the other
+// math text.
+drawStamps() := (
+  regional(aVec, fsStamp, u, pos, val);
+  aVec    = A.xy - O.xy;
+  fsStamp = if(isPortrait, 19, 16);
+  forall(stamps, s,
+    drawArrowPlain(O.xy, s, vecSettingsStamp, colorStamp);
+    if(labelStamps,
+      val = round(100 * ((s - O.xy) * aVec)) / 100;
+      u   = s - O.xy;
+      pos = if(|u| > 0.0001, s + (u / |u|) * (14 / screenresolution()), s);
+      drawtext(pos, "" + val, align -> "center", size -> fsStamp,
+               color -> colorStamp);
+    );
+  );
+);
+
+// ----------------------------------------------------------------
+// Staged exploration flags (mirror the original c → d progression).
+// ----------------------------------------------------------------
+visVecC    = false;   // vector c revealed?
+visVecD    = false;   // vector d (+ stamping) revealed?
+labelStamps = true;   // write the scalar-product value at each stamp's tip
+                      // (toggled in edit mode; default on)
+
+// ----------------------------------------------------------------
+// Sidebar button bar
+// Buttons are drawn with fillpoly + drawtext (no CindyJS Button
+// objects). drawSidebar rebuilds btList = [[L, R, B, T, action], …]
+// every frame; csmousedown dispatches clicks against it. Button set is
+// stage-dependent:
+//   edit                     →  [Zufällige Position]
+//   display, no c yet        →  [ c ]
+//   display, c shown         →  [ c ] [ d ]        (toggles; active tinted)
+//   display, d shown         →  [ c ] [ d ] [Abdruck]
+//                                 (+ [Rückgängig] [Alles löschen] with stamps)
+// c and d are TOGGLES, so a probe can be hidden again to revisit an
+// earlier stage (hiding c hides d too).
+// ----------------------------------------------------------------
+btList = [];
+
+drawSbBtn(bx0, bx1, by0, by1, label, fillC, txtC, actn, fsBase) := (
+  regional(p00, p10, p11, p01, cx, cy, pressed, useFill, fs, lblW, availPx);
+  p00 = sb(bx0, by0);  p10 = sb(bx1, by0);
+  p11 = sb(bx1, by1);  p01 = sb(bx0, by1);
+  // Momentary press feedback: while the mouse is held down over the
+  // button it darkens (like a physical key), reverting on release.
+  pressed = mouseDownFlag &
+            mouse().x > p00.x & mouse().x < p10.x &
+            mouse().y > p00.y & mouse().y < p01.y;
+  useFill = if(pressed, txtC * 0.45 + white * 0.55, fillC);
+  fillpoly([p00, p10, p11, p01], color -> useFill);
+  drawpoly([p00, p10, p11, p01], color -> txtC, size -> 1.2);
+  cx = (bx0 + bx1) / 2;  cy = (by0 + by1) / 2;
+  // Start from the button's preferred size, then auto-fit: shrink (down to
+  // 10) if the label is wider than the button, so long labels never overflow.
+  fs      = fsBase;
+  lblW    = (pixelsize(label, size -> fs))_1;
+  availPx = (bx1 - bx0) - 12;
+  if(lblW > availPx, fs = max(10, fs * availPx / lblW));
+  drawtext(sb(cx, cy), label, align -> "center",
+           size -> fs, color -> txtC, yoffset -> -fs * 0.27);
+  btList = btList ++ [[p00.x, p10.x, p00.y, p01.y, actn]];
+);
+
+drawSidebar() := (
+  regional(w, h, btnH, pad, gap, labels, actions, fills, txts, sizes, n, i,
+           bx0, bx1, by0, by1, cols, rows, cellW, totalH, yTop, rIdx, cIdx);
+  w = sbWidthPx();  h = sbHeightPx();
+  btnH = 38;  pad = 10;  gap = 9;
+
+  // Build the stage-dependent button set (parallel lists). sizes holds each
+  // button's preferred font size; the c/d toggles get a larger glyph.
+  labels = [];  actions = [];  fills = [];  txts = [];  sizes = [];
+  if(editmode,
+    labels  = ["Zufällige Position",
+               "Beschriftung der Abdrücke: " + if(labelStamps, "an", "aus")];
+    actions = ["rand", "toggleLabel"];
+    fills   = [petrol10, if(labelStamps, petrol25, petrol10)];
+    txts    = [petrol, petrol];
+    sizes   = [15, 15];
+  ,
+    // c toggle (always present in display mode); tinted when active.
+    labels  = ["$\vec c$"];                       actions = ["toggleC"];
+    fills   = [if(visVecC, petrol25, petrol10)];  txts    = [petrol];  sizes = [22];
+    // d toggle (once c is shown).
+    if(visVecC,
+      labels  = labels  ++ ["$\vec d$"];                       actions = actions ++ ["toggleD"];
+      fills   = fills   ++ [if(visVecD, petrol25, petrol10)];  txts = txts ++ [petrol];  sizes = sizes ++ [22];
+    );
+    // Stamp + manage stamps (once d is shown).
+    if(visVecD,
+      labels  = labels  ++ ["Abdruck"];  actions = actions ++ ["stamp"];
+      fills   = fills   ++ [petrol10];   txts    = txts    ++ [petrol];  sizes = sizes ++ [15];
+      if(stamps != [],
+        labels  = labels  ++ ["Rückgängig", "Alles löschen"];
+        actions = actions ++ ["undo",       "clear"];
+        fills   = fills   ++ [petrol10,     wineRed10];
+        txts    = txts    ++ [petrol,       wineRed];
+        sizes   = sizes   ++ [15,           15];
+      );
+    );
+  );
+
+  n = length(labels);
+  btList = [];
+  if(!isPortrait,
+    // Landscape: vertical stack from the top of the (tall) sidebar.
+    forall(1..n, i,
+      by1 = h - pad - (i - 1) * (btnH + gap);
+      by0 = by1 - btnH;
+      drawSbBtn(pad, w - pad, by0, by1, labels_i, fills_i, txts_i, actions_i, sizes_i);
+    );
+  ,
+    // Portrait: flow grid, up to 3 per row, wrapping to a second row.
+    cols   = if(n <= 3, n, ceil(n / 2));
+    rows   = ceil(n / cols);
+    cellW  = (w - 2 * pad - (cols - 1) * gap) / cols;
+    totalH = rows * btnH + (rows - 1) * gap;
+    yTop   = h / 2 + totalH / 2;
+    forall(1..n, i,
+      rIdx = ceil(i / cols);
+      cIdx = i - (rIdx - 1) * cols;
+      bx0  = pad + (cIdx - 1) * (cellW + gap);
+      bx1  = bx0 + cellW;
+      by1  = yTop - (rIdx - 1) * (btnH + gap);
+      by0  = by1 - btnH;
+      drawSbBtn(bx0, bx1, by0, by1, labels_i, fills_i, txts_i, actions_i, sizes_i);
+    );
+  );
+);
+
+// Dispatch a button action (called from csmousedown).
+doAction(actn) := (
+  regional(ah);
+  ah = if(|A - O| > 0.0001, (A - O) / |A - O|, [1, 0]);
+  if(actn == "rand", randomStart());
+  // c / d are toggles. Turning a probe on places it just off g (shifted
+  // along a) so there is something to move onto the locus. Turning c off
+  // also turns d off (c is the prerequisite for d).
+  if(actn == "toggleC",
+    visVecC = !visVecC;
+    if(visVecC, C.xy = B.xy + 1.4 * ah, visVecD = false);
+  );
+  if(actn == "toggleD",
+    visVecD = !visVecD;
+    if(visVecD, D.xy = B.xy - 1.4 * ah);
+  );
+  if(actn == "stamp", stamp());
+  if(actn == "undo",  remLastStamp());
+  if(actn == "clear", stamps = []);
+  if(actn == "toggleLabel", labelStamps = !labelStamps);
+);
+
+// ----------------------------------------------------------------
+// Random start situation. a and b are integer lattice vectors that both
+// point into the RIGHT half-plane (x ≥ 1 → direction in (270°, 90°)), so
+// they may sit in the 1st or 4th quadrant (up-right or down-right). Their
+// lengths are ≥ 2 and the angle between them is in [randMinAng, randMaxAng]
+// — not too acute, and below 90° so the scalar product a·b is POSITIVE.
+// Both a and b are guaranteed to differ from the previous situation, so
+// every click visibly changes BOTH vectors (small integer components would
+// otherwise repeat by chance). Integer components keep a·b a clean integer.
+// ----------------------------------------------------------------
+randMinAng = 30°;   // smallest angle between a and b ("nicht zu spitz")
+randMaxAng = 85°;   // largest angle (< 90° → a·b stays positive)
+
+randomStart() := (
+  regional(pax, pay, pbx, pby, ax, ay, bx, by,
+           qax, qay, qbx, qby, la, lb, cosv, ang, ok);
+  // Previous a, b — the exact integers chosen last time (NOT round() of the
+  // float-noisy stored coordinates), so "must differ from before" is robust.
+  pax = lastRandA_1;  pay = lastRandA_2;
+  pbx = lastRandB_1;  pby = lastRandB_2;
+  // Safe default (used only if the search below ever fails): valid pair.
+  ax = 3;  ay = 1;  bx = 3;  by = -1;
+  ok = false;
+  // Roll a full (a, b) pair until all constraints hold AND both differ
+  // from the previous situation.
+  repeat(400,
+    if(!ok,
+      qax = 1 + floor(random() * 4);  qay = -4 + floor(random() * 9);
+      qbx = 1 + floor(random() * 4);  qby = -4 + floor(random() * 9);
+      la  = qax^2 + qay^2;  lb = qbx^2 + qby^2;
+      if(la >= 4 & lb >= 4 &
+         !(qax == pax & qay == pay) & !(qbx == pbx & qby == pby),
+        cosv = (qax * qbx + qay * qby) / (sqrt(la) * sqrt(lb));
+        ang  = arccos(max(-1, min(1, cosv)));
+        if(ang >= randMinAng & ang <= randMaxAng,
+          ax = qax;  ay = qay;  bx = qbx;  by = qby;  ok = true;
+        );
+      );
+    );
+  );
+
+  A.xy = [ax, ay];
+  B.xy = [bx, by];
+  lastRandA = [ax, ay];  lastRandB = [bx, by];   // exact ints for next compare
+  visVecC = false;  visVecD = false;  stamps = [];
+);
+
+// Scalar-product label "$\vec a \bullet \vec n rel value$" (= or ≈).
+skpTex(nm, P) := (
+  regional(val, r, rel);
+  val = skpWithA(P);
+  r   = round(100 * val) / 100;
+  rel = if(|r - val| < 0.0001, "=", "\approx");
+  "$\vec a \bullet \vec " + nm + " " + rel + " " + r + "$"
+);
+
+// ----------------------------------------------------------------
+// Initial values
+// ----------------------------------------------------------------
+O.xy = [0, 0];
+A.color = colorPoint;  A.size = 9;  A.labelled = false;
+B.color = colorPoint;  B.size = 9;  B.labelled = false;
+C.color = colorPoint;  C.size = 9;  C.labelled = false;
+D.color = colorPoint;  D.size = 9;  D.labelled = false;
+A.xy = [4, 1];
+B.xy = [2, 3];
+
+editmode      = false;
+wasPortrait   = false;
+mouseDownFlag = false;   // tracked via csmousedown / csmouseup
+draggingPt    = 0;       // 0 = none, 1 = dragging A, 2 = dragging B
+hitUI         = false;
+
+lastRandA = [0, 0];   // exact ints of the last random a / b (for the
+lastRandB = [0, 0];   // "both must change" check in randomStart)
+randomStart();
+
+// Remember a/b so a manual change in edit mode can reset the exploration.
+lastAxy = A.xy;
+lastBxy = B.xy;
+
+resetclock();
+playAnimation();
+
+</script>
+
+
+<!-- ===========================================================
+     CSMOVE — runs every animation frame
+     =========================================================== -->
+<script id="csmove" type="text/x-cindyscript">
+
+// Edit-mode dragging + grid snap, done here (before the component labels
+// below) so the top-left display matches the snapped a/b live while
+// dragging, not only after the mouse is released. a/b are pinned, so the
+// grabbed tip is moved to the cursor by us, then both are snapped.
+if(editmode,
+  if(mouseDownFlag & draggingPt == 1, A.xy = mouse());
+  if(mouseDownFlag & draggingPt == 2, B.xy = mouse());
+  snapToGrid(A);  snapToGrid(B);
+);
+
+// Base sizes; the currently draggable point pulses to invite interaction.
+// Edit mode: a and b are set up (drag their tips). Display mode: the
+// active probe (c, then d) is the thing to drag onto the locus.
+A.size = 9;  B.size = 9;  C.size = 9;  D.size = 9;
+if(editmode,
+  pulsePoint(B, 5, 3.2, 4);
+,
+  if(visVecD, pulsePoint(D, 5, 3.2, 4),
+    if(visVecC, pulsePoint(C, 5, 3.2, 4)));
+);
+
+// Component displays via the framework helper.
+tVecA = texVec("a", [A.x, A.y]);
+tVecB = texVec("b", [B.x, B.y]);
+
+</script>
+
+
+<!-- ===========================================================
+     CSDRAW — runs every frame after csmove
+     =========================================================== -->
+<script id="csdraw" type="text/x-cindyscript">
+
+// 1) Layout + anchors. The sidebar is always visible (set in csinit,
+//    sidebarFollowsEditmode = false), so platformBeginFrame leaves
+//    sidebarVisible = true.
+platformBeginFrame();
+
+// Reference scalar product a·b — the target value for the exploration.
+// (a/b are already snapped to the grid in csmove when in edit mode.)
+skpAB = skpWithA(B);
+
+// In edit mode, manually changing the position of a or b changes the
+// situation, so the exploration (c, d and the stamps — they belong to the
+// old a, b) is reset.
+if(editmode & (|A.xy - lastAxy| > 0.0001 % |B.xy - lastBxy| > 0.0001),
+  visVecC = false;  visVecD = false;  stamps = [];
+);
+lastAxy = A.xy;  lastBxy = B.xy;
+
+// 2) Visibility & pinning by mode / stage. In edit mode A and B are the
+//    draggable handles; in display mode they are pinned and the probes
+//    take over. The wine-red point shows ONLY for the vector that is
+//    currently movable (both a and b in edit; the active probe otherwise).
+cActive = visVecC & !visVecD & !editmode;
+dActive = visVecD & !editmode;
+// a/b are ALWAYS pinned so CindyJS never grabs them natively (we drag them
+// ourselves in csmove); they are just shown/hidden by mode.
+A.visible = editmode;  A.pinned = true;
+B.visible = editmode;  B.pinned = true;
+C.visible = cActive;   C.pinned = !cActive;
+D.visible = dActive;   D.pinned = !dActive;
+
+// 3) Snap the active probe onto the (hidden) locus g.
+if(cActive, snapToG(C));
+if(dActive, snapToG(D));
+
+// Equality against a·b (a snapped probe hits it exactly).
+eqTol = 0.005;
+isEqC = visVecC & |skpWithA(C) - skpAB| < eqTol;
+isEqD = visVecD & |skpWithA(D) - skpAB| < eqTol;
+
+// 4) Status messages. Edit mode keeps the wine-red banner; the display
+//    work instructions use the yellow/orange tone (setWork), slimmed down.
+//    The target value is read live off the drawing (= a·b).
+targetVal = round(100 * skpAB) / 100;
+if(editmode,
+  setStatus(
+    ["SITUATION BEARBEITEN: Ziehe die Spitzen von $\vec a$ und $\vec b$.",
+     "Ihr Skalarprodukt $\vec a \bullet \vec b$ ist der Zielwert."],
+    "alert");
+,
+  if(!visVecC,
+    setWork(["Gibt es weitere Vektoren, die mit $\vec a$ das Skalarprodukt " + targetVal + " haben?"]);
+  , if(!visVecD,
+    if(isEqC,
+      setWork(["Findest du noch einen weiteren Vektor $\vec d$?"]);
+    ,
+      setWork(["Verändere $\vec c$, bis $\vec a \bullet \vec c = \vec a \bullet \vec b$ gilt."]);
+    );
+  ,
+    setWork(["Du kannst nun Abdrücke des Vektors $\vec d$ setzen.",
+             "Drücke dazu den Schalter „Abdruck“ oder die Leertaste."]);
+  ));
+);
+
+// 5) Sidebar contents (staged buttons) — always visible.
+if(sidebarVisible, drawSidebar());
+wasPortrait = isPortrait;
+
+// 6) Geometry: the stamped family behind, then the live arrows a, b, c, d.
+drawStamps();
+drawArrow(O, A, "a", vecSettingsR, colorVector);
+drawArrow(O, B, "b", vecSettingsL, colorVector);
+if(visVecC & !editmode, drawArrow(O, C, "c", vecSettingsL, colorVector));
+if(visVecD & !editmode, drawArrow(O, D, "d", vecSettingsL, colorVector));
+
+// 7) Math text overlays. Components top-left; scalar products at the tips
+//    (petrol while a probe is being changed, black once it reaches a·b).
+fsSkp   = if(isPortrait, 30, 24);
+fsComps = if(isPortrait, 32, 30);
+ovPad   = 8;   // background padding around the labels, px
+
+// a / b component labels in the top-left corner.
+if(!isPortrait,
+  drawLabel(axContentLeft, axContentTop, tVecA + ",    " + tVecB,
+            fsComps, colorVector, "left", "top", labelBgComps, ovPad);
+,
+  // Portrait: stack a above b, b's box just below a's.
+  regional(bottomA);
+  bottomA = drawLabel(axContentLeft, axContentTop, tVecA,
+                      fsComps, colorVector, "left", "top", labelBgComps, ovPad);
+  drawLabel(axContentLeft, bottomA - 6 / screenresolution(), tVecB,
+            fsComps, colorVector, "left", "top", labelBgComps, ovPad);
+);
+
+// a·b at the tip of b (the reference value).
+drawLabel(B.x + 18 / screenresolution(), B.y, skpTex("b", B),
+          fsSkp, [0, 0, 0], "left", "mid", labelBgSkp, ovPad);
+
+// a·c / a·d at their tips: petrol while being changed, black once equal.
+if(visVecC & !editmode,
+  drawLabel(C.x + 18 / screenresolution(), C.y, skpTex("c", C),
+            fsSkp, if(isEqC, [0, 0, 0], colorVector), "left", "mid", labelBgSkp, ovPad);
+);
+if(visVecD & !editmode,
+  drawLabel(D.x + 18 / screenresolution(), D.y, skpTex("d", D),
+            fsSkp, if(isEqD, [0, 0, 0], colorVector), "left", "mid", labelBgSkp, ovPad);
+);
+
+// 8) Chrome on top. The footer shows the work instruction AND the credits
+//    (stacked) — see drawFooterCombined.
+drawTitle();
+drawCog();
+drawUnit();
+drawFooterCombined();
+
+</script>
+
+
+<!-- ===========================================================
+     CSMOUSEDOWN — cog button toggles edit mode
+     =========================================================== -->
+<script id="csmousedown" type="text/x-cindyscript">
+mouseDownFlag = true;
+hitUI = false;   // was a chrome element (cog / a button) pressed this click?
+// Cog toggles edit mode only. The exploration (probes c/d and stamps) is
+// preserved across mode switches — it is cleared explicitly via the
+// "Alles löschen" button or by drawing a new situation ("Zufällige
+// Position"), never automatically.
+if(mouse().x > axCogLeft & mouse().x < axCogRight &
+   mouse().y > axCogBot  & mouse().y < axCogTop,
+  editmode = !editmode;  hitUI = true;
+);
+// Sidebar buttons: dispatch the click against the bounds drawSidebar
+// recorded this frame in btList = [[L, R, B, T, action], …].
+forall(btList, bt,
+  if(mouse().x > bt_1 & mouse().x < bt_2 &
+     mouse().y > bt_3 & mouse().y < bt_4,
+    doAction(bt_5);  hitUI = true;
+  );
+);
+// Start dragging a or b (edit mode only, press near the tip, not on chrome).
+// a/b are pinned, so CindyJS never grabs them natively — we move them
+// ourselves in csmove. This avoids the native-drag "stuck point" bug where
+// a button click could grab a tip and snap it back on release.
+draggingPt = 0;
+if(editmode & !hitUI,
+  if(|mouse() - A| * screenresolution() < 40, draggingPt = 1,
+    if(|mouse() - B| * screenresolution() < 40, draggingPt = 2));
+);
+</script>
+
+
+<!-- ===========================================================
+     CSMOUSEUP — clear the mouse-button state
+     =========================================================== -->
+<script id="csmouseup" type="text/x-cindyscript">
+mouseDownFlag = false;
+draggingPt    = 0;
+</script>
+
+
+<!-- ===========================================================
+     CSKEYTYPED — keyboard shortcut (as in the original applet):
+     pressing any key stamps the current position of d, but only while
+     d is the active probe in display mode.
+     =========================================================== -->
+<script id="cskeytyped" type="text/x-cindyscript">
+if(!editmode & visVecD, stamp());
+</script>
+
+
+<!-- ===========================================================
+     CindyJS initialization — geometry objects and viewport
+     =========================================================== -->
+<script type="text/javascript">
+var cdy = CindyJS({
+    scripts: "cs*",
+    defaultAppearance: {
+        dimDependent: 0.7,
+        fontFamily:   "sans-serif",
+        lineSize:     1,
+        pointSize:    5.0,
+        textsize:     12.0
+    },
+    angleUnit: "°",
+    geometry: [
+        // Origin (pinned, invisible) — common tail of all vectors.
+        {name: "O", type: "Free", pos: [0.0, 0.0, 1.0],
+            color: [1.0, 0.0, 0.0], visible: false, pinned: true},
+        // Tip of vector a (draggable in edit mode). Positions are
+        // overwritten by randomStart() in csinit.
+        {name: "A", type: "Free", pos: [4.0, 1.0, 1.0],
+            color: [0.643, 0.255, 0.408], size: 9.0},
+        // Tip of vector b (draggable in edit mode) — defines the target a·b.
+        {name: "B", type: "Free", pos: [2.0, 3.0, 1.0],
+            color: [0.643, 0.255, 0.408], size: 9.0},
+        // Tip of probe c (revealed in display mode; snaps onto the locus g).
+        {name: "C", type: "Free", pos: [3.0, 1.0, 1.0],
+            color: [0.643, 0.255, 0.408], visible: false, size: 9.0},
+        // Tip of probe d (revealed in display mode; snaps onto g; stampable).
+        {name: "D", type: "Free", pos: [1.0, 3.0, 1.0],
+            color: [0.643, 0.255, 0.408], visible: false, size: 9.0}
+    ],
+    ports: [{
+        id: "CSCanvas",
+        transform: [{visibleRect: [-6.5, 5.5, 10.5, -6.5]}],
+        grid: 0.5,
+        snap: false,
+        background: "rgb(255,255,255)"
+    }],
+    csconsole: false,
+    use: ["katex"],
+    cinderella: {build: 2124, version: [3, 0, 2124]}
+});
+
+// ===========================================================
+// Responsive viewport: keep the grid-cell size identical in
+// portrait and landscape.
+//
+// CindyJS' visibleRect fits the rectangle with a uniform
+// min-scale, so a fixed landscape-shaped rect (17×10) gets a
+// much smaller scale on a tall portrait canvas — the squares
+// shrink. To avoid that we rebuild the visibleRect for the
+// current canvas so the scale (px per unit) always equals the
+// scale this device would use in landscape. Landscape and
+// desktop are unaffected; portrait simply zooms in to match.
+//
+// CindyJS re-reads ports[].transform on every (real) resize and
+// defers the recompute via requestAnimationFrame, while these
+// listeners run synchronously first — so the updated rect is
+// what CindyJS applies.
+// ===========================================================
+(function () {
+  // Design rectangle, mirrors visibleRect [-6.5, 5.5, 10.5, -6.5].
+  // Taller + lowered centre: lifts the origin so down-pointing (Q4) vectors
+  // clear the (stacked) footer instead of running into the credits.
+  var DW = 17, DH = 12, CX = 2, CY = -0.5;
+  function applyResponsiveViewport() {
+    var el = document.getElementById("CSCanvas");
+    var W = (el && el.clientWidth)  || window.innerWidth;
+    var H = (el && el.clientHeight) || window.innerHeight;
+    if (!(W > 0 && H > 0)) return;
+    // Scale this device uses in landscape (long side ↔ width).
+    var sr = Math.min(Math.max(W, H) / DW, Math.min(W, H) / DH);
+    var halfW = W / sr / 2, halfH = H / sr / 2;
+    // Rect aspect matches the canvas, so min-fit reproduces sr exactly.
+    cdy.config.ports[0].transform[0].visibleRect =
+      [CX - halfW, CY + halfH, CX + halfW, CY - halfH];
+  }
+  applyResponsiveViewport();   // before CindyJS' deferred startup reads config
+  window.addEventListener("resize", applyResponsiveViewport);
+  window.addEventListener("orientationchange", applyResponsiveViewport);
+})();
+</script>
+</head>
+<body>
+    <div id="CSCanvas"></div>
+</body>
+</html>
