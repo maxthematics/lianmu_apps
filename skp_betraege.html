@@ -66,6 +66,7 @@ petrol75  = [114, 143, 153] / 255;
 petrol50  = [152, 171, 178] / 255;
 petrol25  = [192, 202, 206] / 255;
 petrol10  = [212, 219, 222] / 255;
+petrol5   = [236, 240, 242] / 255;   // very light tint (e.g. Rechnung box)
 petrol    = petrol100;
 
 orange100 = [248, 180, 79]  / 255;
@@ -238,6 +239,11 @@ computeAnchors() := (
   height = ymax - ymin;
   sr     = screenresolution();
   isPortrait = height > width;
+  // Global text-scale factor so every label shrinks/grows with the
+  // canvas — keeps small embeds (Moodle iframes) from looking overwhelmed
+  // while staying readable on phones. Based on the geometric mean of the
+  // canvas pixel size, gently clamped so it never gets tiny or huge.
+  fontScale = max(0.6, min(1.0, sqrt(width * height) * sr / 850));
 
   oPad = if(isPortrait, layoutOuterPadP,     layoutOuterPad)     / sr;
   hH   = if(isPortrait, layoutHeaderHpxP,    layoutHeaderHpx)    / sr;
@@ -425,13 +431,44 @@ drawLabel(x, y, text, fs, textcol, halign, valign, showBg, padPx) := (
 drawTextWithBg(pos, text, fs, col, bgcol, padPx, alignment) :=
   drawLabel(pos.x, pos.y, text, fs, col, alignment, "mid", true, padPx);
 
+// Single-line text in a coloured, bordered box centred horizontally in
+// the content area and anchored just above the footer (content bottom),
+// with a left-aligned heading above the box. The body font auto-shrinks
+// from baseFs so the line always fits the content width (important in
+// portrait). Used for the explicit a·b computation.
+drawCenteredBox(text, heading, baseFs, headFs, fillCol, borderCol, txtCol, headCol, boxBottomY) := (
+  regional(sr, pad, maxWpx, m0, fs, m, cw, ca, cd, H, W, by0, cx, cy, l, r, bb, tt);
+  sr     = screenresolution();
+  pad    = 12;
+  maxWpx = (axContentRight - axContentLeft) * sr - 4 * pad;
+  m0     = pixelsize(text, size -> baseFs);
+  fs     = if(m0_1 > maxWpx, baseFs * maxWpx / m0_1, baseFs);
+  m      = pixelsize(text, size -> fs);
+  cw = m_1; ca = m_2; cd = m_3;
+  H   = (ca + cd + 2 * pad) / sr;
+  W   = (cw + 2 * pad) / sr;
+  by0 = boxBottomY;                   // box bottom (world y), set by caller
+  cx  = axContentCx;
+  cy  = by0 + H / 2;
+  l = cx - W / 2; r = cx + W / 2; bb = by0; tt = by0 + H;
+  fillpoly([[l, bb], [r, bb], [r, tt], [l, tt]], color -> fillCol);
+  draw([l, bb], [r, bb], color -> borderCol, size -> 1.2);
+  draw([r, bb], [r, tt], color -> borderCol, size -> 1.2);
+  draw([r, tt], [l, tt], color -> borderCol, size -> 1.2);
+  draw([l, tt], [l, bb], color -> borderCol, size -> 1.2);
+  drawLabel(cx, cy, text, fs, txtCol, "center", "mid", false, pad);
+  // Heading above the box, left-aligned with the body text's left edge
+  // (= the inner padding edge l + pad).
+  drawLabel(l + pad / sr, tt + 7 / sr, heading, headFs, headCol, "left", "base", false, 0);
+);
+
 // ----------------------------------------------------------------
 // Chrome drawing
 // ----------------------------------------------------------------
 
 drawTitle() := (
   regional(fs);
-  fs = if(isPortrait, fontTitleP, fontTitle);
+  fs = fontScale * if(isPortrait, fontTitleP, fontTitle);
   drawLabel(axTitleLeft, axTitleCy, appletTitle,
             fs, colorChrome, "left", "mid", labelBgTitle, 6);
 );
@@ -440,7 +477,7 @@ drawCog() := (
   regional(sz);
   // The cog itself signals the mode: wine red while editing,
   // black otherwise. No background highlight.
-  sz = if(isPortrait, 55, 65);
+  sz = fontScale * if(isPortrait, 55, 65);
   drawtext([axCogCx, axCogCy], "⚙",
     align   -> "center", size -> sz,
     color   -> if(editmode, wineRed, [0, 0, 0]),
@@ -455,7 +492,7 @@ drawUnit() := (
   uY = round(axUnitCy   / 0.5) * 0.5;
   draw([uX, uY], [uX + 1, uY], color -> gray, size -> 5);
   drawtext([uX + 0.5, uY], "1",
-    yoffset -> 10, color -> gray, size -> 16,
+    yoffset -> 10, color -> gray, size -> fontScale * 16,
     align   -> "center");
 );
 
@@ -463,7 +500,7 @@ drawStatusBox() := (
   regional(sr, fs, padPx, lineHpx, n, totalH, boxL, boxR, boxT, boxB,
            cx, cy, i, ypx);
   sr      = screenresolution();
-  fs      = if(isPortrait, fontStatusP, fontStatus);
+  fs      = fontScale * if(isPortrait, fontStatusP, fontStatus);
   padPx   = 10;
   lineHpx = fs * 1.2;
   n       = length(statusLines);
@@ -496,7 +533,7 @@ drawStatusBox() := (
 drawCredits() := (
   regional(sr, fs, dy, edge);
   sr   = screenresolution();
-  fs   = if(isPortrait, fontCreditsP, fontCredits);
+  fs   = fontScale * if(isPortrait, fontCreditsP, fontCredits);
   dy   = (fs + 4) / sr;
   edge = axFooterRight;
   drawtext([edge, axFooterCy + dy], appletAuthors,
@@ -541,7 +578,7 @@ veclabel(start, end, name, settings, col) := (
   v     = end - start;
   p     = perpVec(v);
   pos   = 0.5 * (start + end) + (sep / screenresolution() + thick) * p;
-  drawtext(pos, lab, color -> col, size -> vecLabelSize);
+  drawtext(pos, lab, color -> col, size -> fontScale * vecLabelSize);
 );
 
 drawArrow(A, B, name, settings, col) := (
@@ -601,7 +638,7 @@ drawAngle(P1, P2, C, r, col, alpha, label, labelPos, labelCol) := (
     if(label == "VAL",
       drawtext(labelPt, (a2 - a1), align -> "center", tex -> true, color -> labelCol),
       drawtext(labelPt, "$" + label + "$",
-        align -> "center", tex -> true, color -> labelCol, size -> angLabelSize)
+        align -> "center", tex -> true, color -> labelCol, size -> fontScale * angLabelSize)
     );
   );
 );
@@ -637,6 +674,10 @@ texVec(name, v, digits) := (
   "$\vec{" + name + "} " + rel + "\!\, \begin{pmatrix} " + body + " \end{pmatrix}$"
 );
 
+// Number → TeX string, negatives wrapped in parentheses so a product
+// term reads "4 \cdot (-2.87)" instead of "4 \cdot -2.87".
+fmtNeg(x) := if(x < 0, "(" + x + ")", "" + x);
+
 // Point pulse animation -----------------------------------------
 // pulsePoint(P)                       — defaults: base = 5, amp = 3.2, freq = 4
 // pulsePoint(P, base, amp, freq)      — explicit
@@ -652,7 +693,7 @@ pulsePoint(P, base, amp, freq) := (
 // ════════════════════════════════════════════════════════════════
 
 sidebarWantedWpx = 160;   // wider than default (90) to fit button label
-sidebarWantedHpx = 110;   // taller than default (64) to fit button below slider
+sidebarWantedHpx = 200;   // taller than default (64) to fit slider + two stacked buttons
 
 // ---- Text-field backgrounds ------------------------------------
 // Flip any of these to false to make that label transparent (no white
@@ -703,30 +744,34 @@ adjustBRay() := (
 // via sb(px, py); width / height come from sbWidthPx / sbHeightPx so
 // the slider rescales with the sidebar.
 drawSidebar() := (
-  regional(pad, w, h, btnH, btnPad, bL, bR, bB, bT,
+  regional(pad, w, h, btnH, btnPad, btnGap, bL, bR, bB, bT,
            slAngVal, projMouse, distMouse, mouseInBtn,
-           draggingSlider, vTrack, t, sl90, tickDir, tickLen);
+           draggingSlider, vTrack, t, sl90, tickDir, tickLen, bcTxt);
 
   w = sbWidthPx();
   h = sbHeightPx();
   btnH   = 36;
   btnPad = 8;
+  btnGap = 8;
 
+  // Slider track sits above the two-button block.
   if(!isPortrait,
     pad = 14;
-    slAngS = sb(w/2, btnH + btnPad + 38);
+    slAngS = sb(w/2, 2 * btnH + btnPad + btnGap + 38);
     slAngE = sb(w/2, h - pad);
   ,
     pad = 55;
-    slAngS = sb(pad,     h/2);
-    slAngE = sb(w - pad, h/2);
+    slAngS = sb(pad,     h - 46);
+    slAngE = sb(w - pad, h - 46);
   );
 
-  // Button bounds
+  // Button bounds (stacked bottom→top: random, Rechnung toggle).
   bL = sb(btnPad,     btnPad).x;
   bR = sb(w - btnPad, btnPad).x;
   bB = sb(btnPad,     btnPad).y;
   bT = sb(btnPad,     btnPad + btnH).y;
+  bcB = sb(btnPad, btnPad + btnH + btnGap).y;
+  bcT = sb(btnPad, 2 * btnH + btnPad + btnGap).y;
 
   draggingSlider = false;
 
@@ -738,7 +783,7 @@ drawSidebar() := (
     distMouse  = |mouse() - (slAngS + max(0, min(1, projMouse)) * (slAngE - slAngS))|
                  * screenresolution();
     mouseInBtn = mouse().x > bL & mouse().x < bR &
-                 mouse().y > bB & mouse().y < bT;
+                 mouse().y > bB & mouse().y < bcT;
 
     if(distMouse < 30 & !mouseInBtn,
       draggingSlider = true;
@@ -768,11 +813,11 @@ drawSidebar() := (
   slAngP.size = 12;
 
   if(!isPortrait,
-    drawtext(slAngS, "0°",   yoffset -> -25, color -> colorAngle, size -> 24, align -> "center");
-    drawtext(slAngE, "180°", yoffset ->  20, color -> colorAngle, size -> 24, align -> "center");
+    drawtext(slAngS, "0°",   yoffset -> -25, color -> colorAngle, size -> fontScale * 24, align -> "center");
+    drawtext(slAngE, "180°", yoffset ->  20, color -> colorAngle, size -> fontScale * 24, align -> "center");
   ,
-    drawtext(slAngS, "0°",   xoffset -> -8, color -> colorAngle, size -> 22, align -> "right");
-    drawtext(slAngE, "180°", xoffset ->  8, color -> colorAngle, size -> 22, align -> "left");
+    drawtext(slAngS, "0°",   xoffset -> -8, color -> colorAngle, size -> fontScale * 22, align -> "right");
+    drawtext(slAngE, "180°", xoffset ->  8, color -> colorAngle, size -> fontScale * 22, align -> "left");
   );
 
   // 90° marker at the slider midpoint (the snap position): a short tick
@@ -785,27 +830,34 @@ drawSidebar() := (
        color -> colorAngle, size -> 4);
   if(!isPortrait,
     drawtext(sl90, "90°", xoffset -> -16, align -> "right",
-             color -> colorAngle, size -> 22);
+             color -> colorAngle, size -> fontScale * 22);
   ,
     // Above the track (below would clash with the button row). Sits just
     // under the α label, which only meets it when the angle really is 90°.
     drawtext(sl90, "90°", yoffset -> 22, align -> "center",
-             color -> colorAngle, size -> 20);
+             color -> colorAngle, size -> fontScale * 20);
   );
 
   if(isPortrait,
-    drawtext(slAngP.xy, "$\alpha$", yoffset -> 28, align -> "center", size -> 22, color -> colorAngle);
+    drawtext(slAngP.xy, "$\alpha$", yoffset -> 28, align -> "center", size -> fontScale * 22, color -> colorAngle);
   ,
-    drawtext(slAngP.xy, "$\alpha$", xoffset -> 18, align -> "left", size -> 24, color -> colorAngle);
+    drawtext(slAngP.xy, "$\alpha$", xoffset -> 18, align -> "left", size -> fontScale * 24, color -> colorAngle);
   );
 
-  // Button draw
+  // Button draw (random at the bottom).
   fillpoly([[bL, bB], [bR, bB], [bR, bT], [bL, bT]], color -> petrol10);
   drawtext([(bL + bR) / 2, (bB + bT) / 2], "Zufällige Position",
-           align -> "center", size -> 16, color -> petrol, yoffset -> -16 * 0.27);
-
+           align -> "center", size -> fontScale * 16, color -> petrol, yoffset -> -fontScale * 16 * 0.27);
   btnRandL = bL; btnRandR = bR;
   btnRandB = bB; btnRandT = bT;
+
+  // Show-calculation toggle (above the random button), darker when on.
+  bcTxt = "Rechnung: " + if(showCalc, "an", "aus");
+  fillpoly([[bL, bcB], [bR, bcB], [bR, bcT], [bL, bcT]],
+           color -> if(showCalc, petrol25, petrol10));
+  drawtext([(bL + bR) / 2, (bcB + bcT) / 2], bcTxt,
+           align -> "center", size -> fontScale * 16, color -> petrol, yoffset -> -fontScale * 16 * 0.27);
+  bcL = bL; bcR = bR;
 );
 
 // ----------------------------------------------------------------
@@ -899,6 +951,8 @@ editmode    = false;
 wasPortrait = false;
 
 btnRandL = 0; btnRandR = 0; btnRandT = 0; btnRandB = 0;
+bcL = 0; bcR = 0; bcB = 0; bcT = 0;   // show-calculation toggle bounds
+showCalc        = false;   // explicit a·b computation hidden by default
 mouseDownFlag   = false;   // tracked via csmousedown / csmouseup
 skipSnap        = false;
 pendingBxy      = [99999, 99999];
@@ -924,16 +978,29 @@ if(!editmode,
   B.size = 5;
 );
 
-// Dot product display (exact or rounded to 2 decimals).
-roundedSkpAB = round(100 * A * B) / 100;
-tSkp = if(|roundedSkpAB - A * B| < 0.0001,
-  "$\vec a \bullet \vec b = "       + roundedSkpAB + "$",
-  "$\vec a \bullet \vec b \approx " + roundedSkpAB + "$"
-);
+// The panel shows the components rounded to 2 decimals; the scalar
+// product is computed from EXACTLY those displayed values, so the readout
+// at the arrow tip and the explicit "Rechnung" agree to the last digit.
+rcAx = round(100 * A.x) / 100;   rcAy = round(100 * A.y) / 100;
+rcBx = round(100 * B.x) / 100;   rcBy = round(100 * B.y) / 100;
+roundedSkpAB = round(100 * (rcAx * rcBx + rcAy * rcBy)) / 100;
+// "=" only when nothing had to be rounded (e.g. b is exact), else "≈".
+skpExact = (|rcAx - A.x| < 0.0001) & (|rcAy - A.y| < 0.0001) &
+           (|rcBx - B.x| < 0.0001) & (|rcBy - B.y| < 0.0001);
+tSkp = "$\vec a \bullet \vec b " + if(skpExact, "=", "\approx") + " " + roundedSkpAB + "$";
 
 // Component displays via the framework helper.
 tVecA = texVec("a", [A.x, A.y]);
 tVecB = texVec("b", [B.x, B.y]);
+
+// Explicit a·b computation (shown when the "Rechnung" toggle is on, only
+// in display mode). Uses the SAME rounded components and SAME result as
+// the arrow-tip label, so both readouts always match exactly.
+tCalc = "$\vec a \bullet \vec b " + if(skpExact, "=", "\approx") + " "
+      + "\begin{pmatrix} " + rcAx + " \\ " + rcAy + " \end{pmatrix} \bullet "
+      + "\begin{pmatrix} " + rcBx + " \\ " + rcBy + " \end{pmatrix} = "
+      + rcAx + " \cdot " + fmtNeg(rcBx) + " + " + rcAy + " \cdot " + fmtNeg(rcBy)
+      + " = " + roundedSkpAB + "$";
 
 </script>
 
@@ -983,8 +1050,8 @@ if(mouseDownFlag, clampBToScreen());
 // 6) Math text overlays via drawLabel: backgrounds are measured from
 //    the rendered text so they fit exactly at any size, and each one's
 //    white box can be toggled off through the labelBg* flags above.
-fsSkp   = if(isPortrait, 30, 24);
-fsComps = if(isPortrait, 32, 30);
+fsSkp   = fontScale * if(isPortrait, 30, 24);
+fsComps = fontScale * if(isPortrait, 32, 30);
 ovPad   = 8;   // background padding around the labels, px
 
 // Scalar-product result, floating just to the right of B.
@@ -1009,6 +1076,15 @@ if(!isPortrait,
   );
 );
 
+// Explicit a·b computation in a light box just above the footer (toggled
+// by the "Rechnung" switch in edit mode, shown only in display mode).
+// In ADDITION to the a·b readout at the vector tip, with the same value.
+if(showCalc & !editmode,
+  drawCenteredBox(tCalc, "Rechnung", fontScale * 22, fontScale * 18,
+                  petrol5, petrol, [0, 0, 0], petrol,
+                  axUnitBot);
+);
+
 // 7) Chrome on top.
 drawTitle();
 drawCog();
@@ -1031,6 +1107,11 @@ if(editmode &
    mouse().x > btnRandL & mouse().x < btnRandR &
    mouse().y > btnRandB & mouse().y < btnRandT,
   randomStart();
+);
+if(editmode &
+   mouse().x > bcL & mouse().x < bcR &
+   mouse().y > bcB & mouse().y < bcT,
+  showCalc = !showCalc;
 );
 </script>
 
