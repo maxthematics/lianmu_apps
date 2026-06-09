@@ -90,6 +90,8 @@ appletLicense      = "MIT License";
 
 // ----------------------------------------------------------------
 // Color palette (RGB, normalized to 0.0–1.0)
+// Primary: Petrol | Secondary: Orange, Gray | Tertiary: Wine Red
+// Context: Ochre
 // ----------------------------------------------------------------
 white = [1, 1, 1];
 
@@ -98,6 +100,7 @@ petrol75  = [114, 143, 153] / 255;
 petrol50  = [152, 171, 178] / 255;
 petrol25  = [192, 202, 206] / 255;
 petrol10  = [212, 219, 222] / 255;
+petrol5   = [236, 240, 242] / 255;   // very light tint (e.g. Rechnung box)
 petrol    = petrol100;
 
 orange100 = [248, 180, 79]  / 255;
@@ -129,15 +132,16 @@ ochre10  = [241, 238, 227] / 255;
 ochre    = ochre100;
 
 // ----------------------------------------------------------------
-// Concept colors — semantic palette for mathematical objects
+// Concept colors — semantic palette for mathematical objects.
+// Per-applet overrides allowed in the APPLET LOGIC section.
 // ----------------------------------------------------------------
-colorVector = petrol100;
-colorPoint  = wineRed100;
-colorScalar = gray100;
-colorAngle  = orange100;
-colorLine   = gray75;
-colorAccent = wineRed100;
-colorChrome = gray75;
+colorVector = petrol100;   // arrows, vector labels, components
+colorPoint  = wineRed100;  // free / movable points
+colorScalar = gray100;     // numeric scalars, lengths, dot products
+colorAngle  = orange100;   // angle arcs and labels
+colorLine   = gray75;      // lines, rays, segments
+colorAccent = wineRed100;  // highlights, edit-mode chrome
+colorChrome = gray100;      // titles, credits, neutral UI text
 
 // ----------------------------------------------------------------
 // Coordinate grid. The framework draws the grid itself (drawGrid),
@@ -154,29 +158,32 @@ gridWidth   = 1;                    // line width in px
 // Typography (point sizes). Each role: landscape / portrait.
 // Mobile sizes are ≥ landscape: a phone is held closer, but physical
 // readability still requires equal or larger glyphs, never smaller.
-// Applets may override locally if the visual hierarchy demands it.
+// Applets may override locally if the visual hierarchy demands it
+// (see fsSkp / fsComps in this applet's csdraw).
 // ----------------------------------------------------------------
 fontTitle     = 24;   fontTitleP     = 26;
 fontStatus    = 18;   fontStatusP    = 18;
 fontCredits   = 13;   fontCreditsP   = 12;
-fontMathBig   = 28;   fontMathBigP   = 32;
-fontMathMed   = 22;   fontMathMedP   = 26;
-fontMathSmall = 16;   fontMathSmallP = 18;
+fontMathBig   = 28;   fontMathBigP   = 32;   // main displayed quantity
+fontMathMed   = 22;   fontMathMedP   = 26;   // secondary labels
+fontMathSmall = 16;   fontMathSmallP = 18;   // helper labels
 
 // ----------------------------------------------------------------
-// Layout pixel budget
+// Layout pixel budget. All anchors derive from these constants.
+// Suffix P denotes portrait variant.
 // ----------------------------------------------------------------
 layoutOuterPad     = 16;   layoutOuterPadP     = 10;
 layoutHeaderHpx    = 56;   layoutHeaderHpxP    = 48;
-layoutFooterHpx    = 60;   layoutFooterHpxP    = 56;
-layoutUnitHpx      = 26;   layoutUnitHpxP      = 24;
+layoutFooterHpx    = 60;   layoutFooterHpxP    = 56;   // status OR credits
+layoutUnitHpx      = 26;   layoutUnitHpxP      = 24;   // unit-segment row
 layoutGapPx        = 8;    layoutGapPxP        = 6;
 layoutBrowserBarPx = 0;    layoutBrowserBarPxP = 0;    // handled by 100dvh CSS
-layoutSidebarWpx     = 90;                             // landscape: default width
-layoutSidebarHpx     = 64;                             // portrait:  default height
-layoutSidebarMinWpx  = 60;  layoutSidebarMinHpx  = 50; // framework minima
-layoutSidebarMaxWpx  = 240; layoutSidebarMaxHpx  = 200;// framework maxima
-layoutSidebarMaxFrac = 0.35;                           // fraction of outer rect
+layoutSidebarWpx   = 90;                               // landscape: default width
+layoutSidebarHpx   = 64;                               // portrait:  default height
+layoutSidebarMinWpx = 60;  layoutSidebarMinHpx = 50;   // framework minima
+layoutSidebarMaxWpx = 240; layoutSidebarMaxHpx = 200;  // framework maxima
+layoutSidebarMaxFrac = 0.35;                           // never larger than this
+                                                       // fraction of the outer rect
 layoutCogBtnPx     = 40;   layoutCogBtnPxP     = 36;
 
 // ----------------------------------------------------------------
@@ -188,16 +195,6 @@ layoutCogBtnPx     = 40;   layoutCogBtnPxP     = 36;
 sidebarFollowsEditmode = true;
 sidebarVisible         = false;
 
-// Mouse-button state. CindyJS has no isdown() builtin, so the framework
-// tracks it here: csmousedown sets it true, csmouseup sets it false.
-// Applet code (e.g. slider drag-detection in drawSidebar) can read it.
-mouseDownFlag          = false;
-
-// Text-field backgrounds (showBg flag for drawLabel). Flip to false for
-// a transparent field. Add applet-specific flags (e.g. for math
-// overlays) next to your own labels in the APPLET LOGIC section.
-labelBgTitle           = true;   // applet title
-
 // Sidebar content size request (in pixels). The framework clamps to
 // [layoutSidebarMin…, layoutSidebarMax…] and to layoutSidebarMaxFrac
 // of the outer rect. Set per applet in csinit, or per frame in csdraw
@@ -205,6 +202,7 @@ labelBgTitle           = true;   // applet title
 sidebarWantedWpx = layoutSidebarWpx;
 sidebarWantedHpx = layoutSidebarHpx;
 
+// Status state — empty statusLines means: show credits in the footer row.
 statusLines  = [];
 statusFg     = wineRed100;
 statusBorder = wineRed100;
@@ -212,6 +210,10 @@ statusFill   = wineRed10;
 
 // ----------------------------------------------------------------
 // Status API
+// Built-in modes: "hint" (petrol), "alert" (wineRed),
+//                 "info" (gray), "success" (ochre).
+// Use setStatusCustom() to pick colors directly.
+// `lines` must be a list of strings (one entry per visual line).
 // ----------------------------------------------------------------
 setStatus(lines, mode) := (
   statusLines = lines;
@@ -247,7 +249,19 @@ setStatusCustom(lines, fg, border, fill) := (
 clearStatus() := ( statusLines = []; );
 
 // ----------------------------------------------------------------
-// Anchor computation. Call once at the top of csdraw.
+// Anchor computation. Call once at the top of csdraw, then read
+// the ax* globals from every drawing function.
+//
+// Layout (top to bottom):
+//   ┌───────────────────────────────────┐
+//   │ TITLE                       ⚙     │  header
+//   ├───────────────────────────────────┤
+//   │           CONTENT                 │  content
+//   │                  ┌────────┐       │
+//   │                  │sidebar │       │  sidebar (dynamic)
+//   │ unit ─                            │  unit row
+//   │ STATUS  *or*  credits             │  footer
+//   └───────────────────────────────────┘
 // ----------------------------------------------------------------
 computeAnchors() := (
   regional(b, sr, oPad, hH, fH, uH, gap, bbPx, sbW, sbH, cogPx, cogHalf);
@@ -259,6 +273,11 @@ computeAnchors() := (
   height = ymax - ymin;
   sr     = screenresolution();
   isPortrait = height > width;
+  // Global text-scale factor so every label shrinks/grows with the
+  // canvas — keeps small embeds (Moodle iframes) from looking overwhelmed
+  // while staying readable on phones. Based on the geometric mean of the
+  // canvas pixel size, gently clamped so it never gets tiny or huge.
+  fontScale = max(0.6, min(1.0, sqrt(width * height) * sr / 850));
 
   oPad = if(isPortrait, layoutOuterPadP,     layoutOuterPad)     / sr;
   hH   = if(isPortrait, layoutHeaderHpxP,    layoutHeaderHpx)    / sr;
@@ -266,8 +285,9 @@ computeAnchors() := (
   uH   = if(isPortrait, layoutUnitHpxP,      layoutUnitHpx)      / sr;
   gap  = if(isPortrait, layoutGapPxP,        layoutGapPx)        / sr;
   bbPx = if(isPortrait, layoutBrowserBarPxP, layoutBrowserBarPx) / sr;
-  // Clamp the requested sidebar size to framework min/max and to a
-  // fraction of the outer rectangle.
+  // Clamp the requested sidebar size to framework min/max and to
+  // a fraction of the outer rectangle. Done before axLeft etc. are
+  // used by the sidebar branches below.
   sbW = max(layoutSidebarMinWpx,
             min(sidebarWantedWpx,
                 min(layoutSidebarMaxWpx,
@@ -277,17 +297,20 @@ computeAnchors() := (
                 min(layoutSidebarMaxHpx,
                     layoutSidebarMaxFrac * (ymax - ymin) * sr))) / sr;
 
+  // Outer rectangle (inside outer padding)
   axLeft   = xmin + oPad;
   axRight  = xmax - oPad;
   axTop    = ymax - oPad;
   axBottom = ymin + bbPx + oPad;
 
+  // Header (title left, cog right)
   axHeaderTop    = axTop;
   axHeaderBottom = axTop - hH;
   axHeaderCy     = 0.5 * (axHeaderTop + axHeaderBottom);
   axTitleLeft    = axLeft;
   axTitleCy      = axHeaderCy;
 
+  // Cog button (square hitbox, right-aligned in header)
   cogPx   = if(isPortrait, layoutCogBtnPxP, layoutCogBtnPx);
   cogHalf = cogPx / 2 / sr;
   axCogCx    = axRight - cogHalf;
@@ -297,17 +320,20 @@ computeAnchors() := (
   axCogTop   = axCogCy + cogHalf;
   axCogBot   = axCogCy - cogHalf;
 
+  // Footer (status box OR credits, never both)
   axFooterTop   = axBottom + fH;
   axFooterBot   = axBottom;
   axFooterCy    = 0.5 * (axFooterTop + axFooterBot);
   axFooterLeft  = axLeft;
   axFooterRight = axRight;
 
+  // Unit row (directly above footer)
   axUnitBot  = axFooterTop + gap;
   axUnitTop  = axUnitBot + uH;
   axUnitCy   = 0.5 * (axUnitTop + axUnitBot);
   axUnitLeft = axLeft;
 
+  // Content + sidebar — orientation- and visibility-dependent
   axContentTop  = axHeaderBottom - gap;
   axContentLeft = axLeft;
 
@@ -321,7 +347,7 @@ computeAnchors() := (
       axContentBottom = axSidebarTop + gap;
     ,
       axSidebarBot    = axUnitTop;
-      axSidebarTop    = axUnitTop;
+      axSidebarTop    = axUnitTop;   // degenerate (height 0)
       axContentRight  = axRight;
       axContentBottom = axUnitTop + gap;
     );
@@ -335,7 +361,7 @@ computeAnchors() := (
       axContentBottom = axUnitTop + gap;
     ,
       axSidebarLeft   = axRight;
-      axSidebarRight  = axRight;
+      axSidebarRight  = axRight;       // degenerate (width 0)
       axContentRight  = axRight;
       axContentBottom = axUnitTop + gap;
     );
@@ -350,11 +376,12 @@ computeAnchors() := (
 //
 // Inside drawSidebar(), use these helpers to position content with
 // (0, 0) at the bottom-left corner of the sidebar, measured in
-// pixels. Use sbWidthPx() / sbHeightPx() to size things relative
-// to the actual sidebar.
+// pixels. The framework clamps the sidebar size based on
+// sidebarWantedWpx / sidebarWantedHpx, so use sbWidthPx() /
+// sbHeightPx() to size things relative to the actual sidebar.
 // ----------------------------------------------------------------
-sb(px, py)   := [axSidebarLeft + px / screenresolution(),
-                 axSidebarBot  + py / screenresolution()];
+sb(px, py)  := [axSidebarLeft + px / screenresolution(),
+                axSidebarBot  + py / screenresolution()];
 sbWidthPx()  := (axSidebarRight - axSidebarLeft) * screenresolution();
 sbHeightPx() := (axSidebarTop   - axSidebarBot)  * screenresolution();
 
@@ -438,13 +465,44 @@ drawLabel(x, y, text, fs, textcol, halign, valign, showBg, padPx) := (
 drawTextWithBg(pos, text, fs, col, bgcol, padPx, alignment) :=
   drawLabel(pos.x, pos.y, text, fs, col, alignment, "mid", true, padPx);
 
+// Single-line text in a coloured, bordered box centred horizontally in
+// the content area and anchored just above the footer (content bottom),
+// with a left-aligned heading above the box. The body font auto-shrinks
+// from baseFs so the line always fits the content width (important in
+// portrait). Used for the explicit a·b computation.
+drawCenteredBox(text, heading, baseFs, headFs, fillCol, borderCol, txtCol, headCol, boxBottomY) := (
+  regional(sr, pad, maxWpx, m0, fs, m, cw, ca, cd, H, W, by0, cx, cy, l, r, bb, tt);
+  sr     = screenresolution();
+  pad    = 12;
+  maxWpx = (axContentRight - axContentLeft) * sr - 4 * pad;
+  m0     = pixelsize(text, size -> baseFs);
+  fs     = if(m0_1 > maxWpx, baseFs * maxWpx / m0_1, baseFs);
+  m      = pixelsize(text, size -> fs);
+  cw = m_1; ca = m_2; cd = m_3;
+  H   = (ca + cd + 2 * pad) / sr;
+  W   = (cw + 2 * pad) / sr;
+  by0 = boxBottomY;                   // box bottom (world y), set by caller
+  cx  = axContentCx;
+  cy  = by0 + H / 2;
+  l = cx - W / 2; r = cx + W / 2; bb = by0; tt = by0 + H;
+  fillpoly([[l, bb], [r, bb], [r, tt], [l, tt]], color -> fillCol);
+  draw([l, bb], [r, bb], color -> borderCol, size -> 1.2);
+  draw([r, bb], [r, tt], color -> borderCol, size -> 1.2);
+  draw([r, tt], [l, tt], color -> borderCol, size -> 1.2);
+  draw([l, tt], [l, bb], color -> borderCol, size -> 1.2);
+  drawLabel(cx, cy, text, fs, txtCol, "center", "mid", false, pad);
+  // Heading above the box, left-aligned with the body text's left edge
+  // (= the inner padding edge l + pad).
+  drawLabel(l + pad / sr, tt + 7 / sr, heading, headFs, headCol, "left", "base", false, 0);
+);
+
 // ----------------------------------------------------------------
 // Chrome drawing
 // ----------------------------------------------------------------
 
 drawTitle() := (
   regional(fs);
-  fs = if(isPortrait, fontTitleP, fontTitle);
+  fs = fontScale * if(isPortrait, fontTitleP, fontTitle);
   drawLabel(axTitleLeft, axTitleCy, appletTitle,
             fs, colorChrome, "left", "mid", labelBgTitle, 6);
 );
@@ -453,7 +511,7 @@ drawCog() := (
   regional(sz);
   // The cog itself signals the mode: wine red while editing,
   // black otherwise. No background highlight.
-  sz = if(isPortrait, 55, 65);
+  sz = fontScale * if(isPortrait, 55, 65);
   drawtext([axCogCx, axCogCy], "⚙",
     align   -> "center", size -> sz,
     color   -> if(editmode, wineRed, [0, 0, 0]),
@@ -468,7 +526,7 @@ drawUnit() := (
   uY = round(axUnitCy   / 0.5) * 0.5;
   draw([uX, uY], [uX + 1, uY], color -> gray, size -> 5);
   drawtext([uX + 0.5, uY], "1",
-    yoffset -> 10, color -> gray, size -> 16,
+    yoffset -> 10, color -> gray, size -> fontScale * 16,
     align   -> "center");
 );
 
@@ -476,7 +534,7 @@ drawStatusBox() := (
   regional(sr, fs, padPx, lineHpx, n, totalH, boxL, boxR, boxT, boxB,
            cx, cy, i, ypx);
   sr      = screenresolution();
-  fs      = if(isPortrait, fontStatusP, fontStatus);
+  fs      = fontScale * if(isPortrait, fontStatusP, fontStatus);
   padPx   = 10;
   lineHpx = fs * 1.2;
   n       = length(statusLines);
@@ -509,7 +567,7 @@ drawStatusBox() := (
 drawCredits() := (
   regional(sr, fs, dy, edge);
   sr   = screenresolution();
-  fs   = if(isPortrait, fontCreditsP, fontCredits);
+  fs   = fontScale * if(isPortrait, fontCreditsP, fontCredits);
   dy   = (fs + 4) / sr;
   edge = axFooterRight;
   drawtext([edge, axFooterCy + dy], appletAuthors,
@@ -533,9 +591,15 @@ drawStatusOrCredits() := (
 // Math primitives
 // ----------------------------------------------------------------
 
+// Perpendicular unit vector (90° rotation, normalized)
 perpVec(v) := [-v.y, v.x] / |v|;
 
-// Vector arrow settings: [labelOffsetPx, halfShaftWidth, headWidthFactor, headHeightFactor]
+// Vector arrows -------------------------------------------------
+// vecSettings = [labelOffsetPx, shaftThickness, arrowheadWidthFactor, arrowheadHeightFactor]
+//   _1: label distance from shaft (px; positive = left, negative = right)
+//   _2: half shaft width (in coord units)
+//   _3: arrowhead width multiplier (relative to 2 * shaft width)
+//   _4: arrowhead height multiplier (relative to 2 * shaft width)
 vecLabelSize = 20;
 vecSettingsL = [ 20, 0.05, 4, 4.0];
 vecSettingsR = [-30, 0.05, 4, 4.0];
@@ -548,7 +612,7 @@ veclabel(start, end, name, settings, col) := (
   v     = end - start;
   p     = perpVec(v);
   pos   = 0.5 * (start + end) + (sep / screenresolution() + thick) * p;
-  drawtext(pos, lab, color -> col, size -> vecLabelSize);
+  drawtext(pos, lab, color -> col, size -> fontScale * vecLabelSize);
 );
 
 drawArrow(A, B, name, settings, col) := (
@@ -571,6 +635,19 @@ drawArrow(A, B, name, settings, col) := (
   );
 );
 
+// Angles --------------------------------------------------------
+// drawAngle(P1, P2, C, r, col, alpha, label, labelPos, labelCol)
+//   P1, P2   – two points defining the legs (rays C→P1 and C→P2)
+//   C        – vertex
+//   r        – arc radius (coord units)
+//   col      – stroke color
+//   alpha    – fill blend toward white (0 = no fill, 1 = white)
+//   label    – LaTeX string without $…$, or "VAL" for the numeric value
+//   labelPos – label distance factor along the bisector (1.0 = on arc)
+//   labelCol – label color
+//
+// Convenience wrapper drawAngleC() uses the concept defaults
+// (colorAngle, alpha 0.9, labelPos 0.7) — see APPLET LOGIC.
 angLabelSize = 20;
 angArcSize   = 2;
 
@@ -595,14 +672,22 @@ drawAngle(P1, P2, C, r, col, alpha, label, labelPos, labelCol) := (
     if(label == "VAL",
       drawtext(labelPt, (a2 - a1), align -> "center", tex -> true, color -> labelCol),
       drawtext(labelPt, "$" + label + "$",
-        align -> "center", tex -> true, color -> labelCol, size -> angLabelSize)
+        align -> "center", tex -> true, color -> labelCol, size -> fontScale * angLabelSize)
     );
   );
 );
 
+// drawAngleC(P1, P2, C, r, label)
+// Convenience wrapper using concept defaults.
 drawAngleC(P1, P2, C, r, label) :=
   drawAngle(P1, P2, C, r, colorAngle, 0.9, label, 0.7, colorAngle);
 
+// Vector LaTeX printer ------------------------------------------
+// texVec(name, vec)            → digits = 2
+// texVec(name, vec, digits)    → custom precision
+// Renders $\vec{name} = \begin{pmatrix} … \end{pmatrix}$ when the
+// rounded values are exact, otherwise \approx.
+// Works for any dimension n.
 texVec(name, v) := texVec(name, v, 2);
 texVec(name, v, digits) := (
   regional(scale, n, rounded, exact, body, rel, tol);
@@ -623,6 +708,14 @@ texVec(name, v, digits) := (
   "$\vec{" + name + "} " + rel + "\!\, \begin{pmatrix} " + body + " \end{pmatrix}$"
 );
 
+// Number → TeX string, negatives wrapped in parentheses so a product
+// term reads "4 \cdot (-2.87)" instead of "4 \cdot -2.87".
+fmtNeg(x) := if(x < 0, "(" + x + ")", "" + x);
+
+// Point pulse animation -----------------------------------------
+// pulsePoint(P)                       — defaults: base = 5, amp = 3.2, freq = 4
+// pulsePoint(P, base, amp, freq)      — explicit
+// Call from csmove. Sets P.size to a sin² oscillation.
 pulsePoint(P) := pulsePoint(P, 5, 3.2, 4);
 pulsePoint(P, base, amp, freq) := (
   P.size = base + amp * sin(freq * seconds())^2;
@@ -658,9 +751,9 @@ drawSidebar() := (
   drawpoly([sb(2, 2), sb(w-2, 2), sb(w-2, h-2), sb(2, h-2)],
            color -> colorAccent, size -> 1);
   drawtext(sb(w/2, h - 14), "Sidebar",
-           align -> "center", size -> 14, color -> colorAccent);
+           align -> "center", size -> fontScale * 14, color -> colorAccent);
   drawtext(sb(w/2, 14), "(0,0) → (" + round(w) + "," + round(h) + ")",
-           align -> "center", size -> 11, color -> colorChrome);
+           align -> "center", size -> fontScale * 11, color -> colorChrome);
 );
 
 resetclock();
@@ -705,7 +798,7 @@ wasPortrait = isPortrait;
 //    Use ax* anchors to position. Use concept colors and font* sizes.
 //    drawLabel measures the rendered text (KaTeX too) for an exactly
 //    fitting white background; labelBgVec toggles it on/off.
-fsMed = if(isPortrait, fontMathMedP, fontMathMed);
+fsMed = fontScale * if(isPortrait, fontMathMedP, fontMathMed);
 
 drawLabel(axContentLeft, axContentTop, tVecP,
           fsMed, colorVector, "left", "top", labelBgVec, 8);

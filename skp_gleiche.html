@@ -66,6 +66,7 @@ petrol75  = [114, 143, 153] / 255;
 petrol50  = [152, 171, 178] / 255;
 petrol25  = [192, 202, 206] / 255;
 petrol10  = [212, 219, 222] / 255;
+petrol5   = [236, 240, 242] / 255;   // very light tint (e.g. Rechnung box)
 petrol    = petrol100;
 
 orange100 = [248, 180, 79]  / 255;
@@ -238,6 +239,11 @@ computeAnchors() := (
   height = ymax - ymin;
   sr     = screenresolution();
   isPortrait = height > width;
+  // Global text-scale factor so every label shrinks/grows with the
+  // canvas — keeps small embeds (Moodle iframes) from looking overwhelmed
+  // while staying readable on phones. Based on the geometric mean of the
+  // canvas pixel size, gently clamped so it never gets tiny or huge.
+  fontScale = max(0.6, min(1.0, sqrt(width * height) * sr / 850));
 
   oPad = if(isPortrait, layoutOuterPadP,     layoutOuterPad)     / sr;
   hH   = if(isPortrait, layoutHeaderHpxP,    layoutHeaderHpx)    / sr;
@@ -425,13 +431,44 @@ drawLabel(x, y, text, fs, textcol, halign, valign, showBg, padPx) := (
 drawTextWithBg(pos, text, fs, col, bgcol, padPx, alignment) :=
   drawLabel(pos.x, pos.y, text, fs, col, alignment, "mid", true, padPx);
 
+// Single-line text in a coloured, bordered box centred horizontally in
+// the content area and anchored just above the footer (content bottom),
+// with a left-aligned heading above the box. The body font auto-shrinks
+// from baseFs so the line always fits the content width (important in
+// portrait). Used for the explicit a·b computation.
+drawCenteredBox(text, heading, baseFs, headFs, fillCol, borderCol, txtCol, headCol, boxBottomY) := (
+  regional(sr, pad, maxWpx, m0, fs, m, cw, ca, cd, H, W, by0, cx, cy, l, r, bb, tt);
+  sr     = screenresolution();
+  pad    = 12;
+  maxWpx = (axContentRight - axContentLeft) * sr - 4 * pad;
+  m0     = pixelsize(text, size -> baseFs);
+  fs     = if(m0_1 > maxWpx, baseFs * maxWpx / m0_1, baseFs);
+  m      = pixelsize(text, size -> fs);
+  cw = m_1; ca = m_2; cd = m_3;
+  H   = (ca + cd + 2 * pad) / sr;
+  W   = (cw + 2 * pad) / sr;
+  by0 = boxBottomY;                   // box bottom (world y), set by caller
+  cx  = axContentCx;
+  cy  = by0 + H / 2;
+  l = cx - W / 2; r = cx + W / 2; bb = by0; tt = by0 + H;
+  fillpoly([[l, bb], [r, bb], [r, tt], [l, tt]], color -> fillCol);
+  draw([l, bb], [r, bb], color -> borderCol, size -> 1.2);
+  draw([r, bb], [r, tt], color -> borderCol, size -> 1.2);
+  draw([r, tt], [l, tt], color -> borderCol, size -> 1.2);
+  draw([l, tt], [l, bb], color -> borderCol, size -> 1.2);
+  drawLabel(cx, cy, text, fs, txtCol, "center", "mid", false, pad);
+  // Heading above the box, left-aligned with the body text's left edge
+  // (= the inner padding edge l + pad).
+  drawLabel(l + pad / sr, tt + 7 / sr, heading, headFs, headCol, "left", "base", false, 0);
+);
+
 // ----------------------------------------------------------------
 // Chrome drawing
 // ----------------------------------------------------------------
 
 drawTitle() := (
   regional(fs);
-  fs = if(isPortrait, fontTitleP, fontTitle);
+  fs = fontScale * if(isPortrait, fontTitleP, fontTitle);
   drawLabel(axTitleLeft, axTitleCy, appletTitle,
             fs, colorChrome, "left", "mid", labelBgTitle, 6);
 );
@@ -440,7 +477,7 @@ drawCog() := (
   regional(sz);
   // The cog itself signals the mode: wine red while editing,
   // black otherwise. No background highlight.
-  sz = if(isPortrait, 55, 65);
+  sz = fontScale * if(isPortrait, 55, 65);
   drawtext([axCogCx, axCogCy], "⚙",
     align   -> "center", size -> sz,
     color   -> if(editmode, wineRed, [0, 0, 0]),
@@ -455,7 +492,7 @@ drawUnit() := (
   uY = round(axUnitCy   / 0.5) * 0.5;
   draw([uX, uY], [uX + 1, uY], color -> gray, size -> 5);
   drawtext([uX + 0.5, uY], "1",
-    yoffset -> 10, color -> gray, size -> 16,
+    yoffset -> 10, color -> gray, size -> fontScale * 16,
     align   -> "center");
 );
 
@@ -463,7 +500,7 @@ drawStatusBox() := (
   regional(sr, fs, padPx, lineHpx, n, totalH, boxL, boxR, boxT, boxB,
            cx, cy, i, ypx);
   sr      = screenresolution();
-  fs      = if(isPortrait, fontStatusP, fontStatus);
+  fs      = fontScale * if(isPortrait, fontStatusP, fontStatus);
   padPx   = 10;
   lineHpx = fs * 1.2;
   n       = length(statusLines);
@@ -496,7 +533,7 @@ drawStatusBox() := (
 drawCredits() := (
   regional(sr, fs, dy, edge);
   sr   = screenresolution();
-  fs   = if(isPortrait, fontCreditsP, fontCredits);
+  fs   = fontScale * if(isPortrait, fontCreditsP, fontCredits);
   dy   = (fs + 4) / sr;
   edge = axFooterRight;
   drawtext([edge, axFooterCy + dy], appletAuthors,
@@ -541,7 +578,7 @@ veclabel(start, end, name, settings, col) := (
   v     = end - start;
   p     = perpVec(v);
   pos   = 0.5 * (start + end) + (sep / screenresolution() + thick) * p;
-  drawtext(pos, lab, color -> col, size -> vecLabelSize);
+  drawtext(pos, lab, color -> col, size -> fontScale * vecLabelSize);
 );
 
 drawArrow(A, B, name, settings, col) := (
@@ -601,7 +638,7 @@ drawAngle(P1, P2, C, r, col, alpha, label, labelPos, labelCol) := (
     if(label == "VAL",
       drawtext(labelPt, (a2 - a1), align -> "center", tex -> true, color -> labelCol),
       drawtext(labelPt, "$" + label + "$",
-        align -> "center", tex -> true, color -> labelCol, size -> angLabelSize)
+        align -> "center", tex -> true, color -> labelCol, size -> fontScale * angLabelSize)
     );
   );
 );
@@ -636,6 +673,10 @@ texVec(name, v, digits) := (
   // spacing around \approx.
   "$\vec{" + name + "} " + rel + "\!\, \begin{pmatrix} " + body + " \end{pmatrix}$"
 );
+
+// Number → TeX string, negatives wrapped in parentheses so a product
+// term reads "4 \cdot (-2.87)" instead of "4 \cdot -2.87".
+fmtNeg(x) := if(x < 0, "(" + x + ")", "" + x);
 
 // Point pulse animation -----------------------------------------
 // pulsePoint(P)                       — defaults: base = 5, amp = 3.2, freq = 4
@@ -768,7 +809,7 @@ drawArrowPlain(P, Q, settings, col) := (
 drawStamps() := (
   regional(aVec, fsStamp, u, pos, val);
   aVec    = A.xy - O.xy;
-  fsStamp = if(isPortrait, 19, 16);
+  fsStamp = fontScale * if(isPortrait, 19, 16);
   forall(stamps, s,
     drawArrowPlain(O.xy, s, vecSettingsStamp, colorStamp);
     if(labelStamps,
@@ -820,7 +861,7 @@ drawSbBtn(bx0, bx1, by0, by1, label, fillC, txtC, actn, fsBase) := (
   cx = (bx0 + bx1) / 2;  cy = (by0 + by1) / 2;
   // Start from the button's preferred size, then auto-fit: shrink (down to
   // 10) if the label is wider than the button, so long labels never overflow.
-  fs      = fsBase;
+  fs      = fontScale * fsBase;
   lblW    = (pixelsize(label, size -> fs))_1;
   availPx = (bx1 - bx0) - 12;
   if(lblW > availPx, fs = max(10, fs * availPx / lblW));
@@ -1119,8 +1160,8 @@ if(visVecD & !editmode, drawArrow(O, D, "d", vecSettingsL, colorVector));
 
 // 7) Math text overlays. Components top-left; scalar products at the tips
 //    (petrol while a probe is being changed, black once it reaches a·b).
-fsSkp   = if(isPortrait, 30, 24);
-fsComps = if(isPortrait, 32, 30);
+fsSkp   = fontScale * if(isPortrait, 30, 24);
+fsComps = fontScale * if(isPortrait, 32, 30);
 ovPad   = 8;   // background padding around the labels, px
 
 // a / b component labels in the top-left corner.
