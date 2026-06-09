@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Skalarprodukt – Interaktive Applets</title>
+<style>
+  :root{
+    --petrol:#327a86;
+    --petrol-dark:#26606b;
+    --orange:#f8b44f;
+    --wine:#a44168;
+    --ink:#33383a;
+    --muted:#6b7679;
+    --line:#e6eaec;
+    --bg:#fafafa;
+    --card:#ffffff;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:980px;margin:0 auto;padding:clamp(2rem,6vw,5rem) clamp(1.1rem,4vw,2rem) 3rem}
+
+  header{margin-bottom:clamp(2rem,5vw,3.2rem)}
+  .kicker{
+    font-size:.78rem;font-weight:600;letter-spacing:.13em;text-transform:uppercase;
+    color:var(--petrol);margin:0 0 .7rem
+  }
+  h1{
+    font-size:clamp(1.7rem,4.5vw,2.5rem);line-height:1.15;font-weight:700;
+    margin:0 0 1rem;letter-spacing:-.01em
+  }
+  .lede{font-size:clamp(1rem,2.4vw,1.12rem);color:var(--muted);max-width:60ch;margin:0}
+  .lede a{color:var(--petrol);text-decoration:none;border-bottom:1px solid rgba(50,122,134,.3)}
+  .lede a:hover{border-bottom-color:var(--petrol)}
+
+  .grid{
+    display:grid;gap:clamp(1rem,2.5vw,1.5rem);
+    grid-template-columns:repeat(auto-fit,minmax(248px,1fr))
+  }
+  .card{
+    display:flex;flex-direction:column;
+    background:var(--card);border:1px solid var(--line);border-radius:16px;
+    overflow:hidden;text-decoration:none;color:inherit;
+    transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease;
+    box-shadow:0 1px 2px rgba(20,40,45,.04)
+  }
+  .card:hover{
+    transform:translateY(-4px);
+    box-shadow:0 14px 30px -12px rgba(20,40,45,.22);
+    border-color:#d3dcde
+  }
+  .card:focus-visible{outline:3px solid var(--petrol);outline-offset:2px}
+  .thumb{display:block;width:100%;height:auto;background:#fbfcfc;border-bottom:1px solid var(--line)}
+  .body{padding:1.05rem 1.15rem 1.25rem;display:flex;flex-direction:column;flex:1}
+  .body h2{font-size:1.12rem;font-weight:650;margin:0 0 .35rem}
+  .body p{font-size:.92rem;color:var(--muted);margin:0 0 1rem}
+  .open{
+    margin-top:auto;font-size:.9rem;font-weight:600;color:var(--petrol);
+    display:inline-flex;align-items:center;gap:.35em
+  }
+  .open .arr{transition:transform .18s ease}
+  .card:hover .open .arr{transform:translateX(3px)}
+
+  footer{
+    margin-top:clamp(2.5rem,6vw,4rem);padding-top:1.5rem;border-top:1px solid var(--line);
+    font-size:.84rem;color:var(--muted)
+  }
+  footer .names{color:var(--ink);font-weight:500}
+  footer a{color:var(--petrol);text-decoration:none}
+  footer a:hover{text-decoration:underline}
+  footer .meta{margin-top:.4rem;font-size:.78rem}
+  footer .logos{display:flex;flex-wrap:wrap;align-items:center;gap:.9rem;margin-bottom:1.5rem}
+  footer .logos .chip{
+    background:#fff;border:1px solid var(--line);border-radius:12px;
+    height:76px;padding:0 1rem;box-sizing:border-box;
+    display:inline-flex;align-items:center;justify-content:center
+  }
+  footer .logos a.chip{transition:border-color .15s ease,box-shadow .15s ease}
+  footer .logos a.chip:hover{border-color:#c9d3d6;box-shadow:0 6px 16px -8px rgba(20,40,45,.2)}
+  footer .logos img{width:auto;display:block}
+  /* per-logo heights, tuned so the wordmarks look optically equal
+     (QuaMath carries a two-line tagline, so it needs more height) */
+  footer .logo-upb{height:42px}
+  footer .logo-qua{height:58px}
+  footer .logo-lian{height:38px}
+  footer .proj{margin-top:.15rem}
+</style>
+</head>
+<body>
+<!-- shared SVG defs: grid pattern + arrowheads -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+      <path d="M20 0H0V20" fill="none" stroke="#e9eef0" stroke-width="1"/>
+    </pattern>
+    <marker id="ah" markerWidth="9" markerHeight="9" refX="6.5" refY="4" orient="auto">
+      <path d="M0 0 L9 4 L0 8 Z" fill="#327a86"/>
+    </marker>
+    <marker id="ah-faint" markerWidth="9" markerHeight="9" refX="6.5" refY="4" orient="auto">
+      <path d="M0 0 L9 4 L0 8 Z" fill="#9cbac1"/>
+    </marker>
+  </defs>
+</svg>
+
+<div class="wrap">
+  <header>
+    <p class="kicker">Lineare Algebra | Analytische Geometrie</p>
+    <h1>Skalarprodukt – interaktive Applets</h1>
+    <p class="lede">
+      Die folgenden Applets zum Skalarprodukt wurden im Rahmen der Projekte
+      <strong>LiAnMu</strong> und <strong>QuaMath</strong> von
+      Max Hoffmann, Janine Herrmann, Olga Lomas &amp; Lena Wessel entwickelt.
+      Alle laufen direkt im Browser – auch auf dem Tablet.
+    </p>
+  </header>
+
+  <main class="grid">
+
+    <!-- Winkel -->
+    <a class="card" href="skp_winkel.html">
+      <svg class="thumb" viewBox="0 0 300 170" role="img"
+           aria-label="Diagramm: zwei Vektoren mit eingeschlossenem Winkel">
+        <rect width="300" height="170" fill="url(#grid)"/>
+        <!-- locus circle of radius |b| that the point moves on -->
+        <circle cx="70" cy="135" r="131" fill="none" stroke="#a44168" stroke-width="2"
+                stroke-dasharray="3 6" opacity=".7"/>
+        <!-- angle arc -->
+        <path d="M70 135 L114 133 A46 46 0 0 0 97 99 Z" fill="#f8b44f" opacity=".18"/>
+        <path d="M112 132 A45 45 0 0 0 96 100" fill="none" stroke="#f8b44f" stroke-width="3.5"/>
+        <!-- vectors -->
+        <line x1="70" y1="135" x2="250" y2="112" stroke="#327a86" stroke-width="4"
+              stroke-linecap="round" marker-end="url(#ah)"/>
+        <line x1="70" y1="135" x2="158" y2="38" stroke="#327a86" stroke-width="4"
+              stroke-linecap="round" marker-end="url(#ah)"/>
+        <circle cx="158" cy="38" r="6" fill="#a44168"/>
+      </svg>
+      <div class="body">
+        <h2>Skalarprodukt und Winkel</h2>
+        <p>Wie verändert sich das Skalarprodukt, wenn man den Winkel zwischen den Vektoren variiert? Punkt auf dem Kreis ziehen.</p>
+        <span class="open">Öffnen <span class="arr">→</span></span>
+      </div>
+    </a>
+
+    <!-- Beträge -->
+    <a class="card" href="skp_betraege.html">
+      <svg class="thumb" viewBox="0 0 300 170" role="img"
+           aria-label="Diagramm: Vektor mit Projektion auf einen zweiten Vektor">
+        <rect width="300" height="170" fill="url(#grid)"/>
+        <!-- projection (geometric meaning) -->
+        <line x1="178" y1="135" x2="178" y2="52" stroke="#a44168" stroke-width="2"
+              stroke-dasharray="4 4" opacity=".7"/>
+        <!-- angle arc + faint sector -->
+        <path d="M62 135 L104 135 A42 42 0 0 0 90 104 Z" fill="#f8b44f" opacity=".18"/>
+        <path d="M104 135 A42 42 0 0 0 90 104" fill="none" stroke="#f8b44f" stroke-width="3.5"/>
+        <!-- vectors -->
+        <line x1="62" y1="135" x2="258" y2="135" stroke="#327a86" stroke-width="4"
+              stroke-linecap="round" marker-end="url(#ah)"/>
+        <line x1="62" y1="135" x2="178" y2="52" stroke="#327a86" stroke-width="4"
+              stroke-linecap="round" marker-end="url(#ah)"/>
+        <circle cx="178" cy="52" r="6" fill="#a44168"/>
+      </svg>
+      <div class="body">
+        <h2>Skalarprodukt und Beträge</h2>
+        <p>Zusammenspiel von Skalarprodukt, Beträgen und Winkel – Länge per Schieberegler, Winkel über den α-Slider.</p>
+        <span class="open">Öffnen <span class="arr">→</span></span>
+      </div>
+    </a>
+
+    <!-- Gleiche Skalarprodukte -->
+    <a class="card" href="skp_gleiche.html">
+      <svg class="thumb" viewBox="0 0 300 170" role="img"
+           aria-label="Diagramm: Vektoren a und b mit Fragezeichen">
+        <rect width="300" height="170" fill="url(#grid)"/>
+        <!-- big faint question mark: which other vectors give the same product? -->
+        <text x="248" y="86" font-family="Georgia, 'Times New Roman', serif"
+              font-size="52" font-weight="700" fill="#327a86" opacity=".18"
+              text-anchor="middle">?</text>
+        <!-- reference vector a -->
+        <line x1="62" y1="132" x2="244" y2="132" stroke="#327a86" stroke-width="4"
+              stroke-linecap="round" marker-end="url(#ah)"/>
+        <!-- vector b with draggable tip -->
+        <line x1="62" y1="132" x2="172" y2="50" stroke="#327a86" stroke-width="4"
+              stroke-linecap="round" marker-end="url(#ah)"/>
+        <circle cx="172" cy="50" r="6" fill="#a44168"/>
+      </svg>
+      <div class="body">
+        <h2>Gleiche Skalarprodukte</h2>
+        <p>Welche anderen Vektoren haben mit <em>a</em> dasselbe Skalarprodukt wie <em>b</em>? Selbst herausfinden.</p>
+        <span class="open">Öffnen <span class="arr">→</span></span>
+      </div>
+    </a>
+
+  </main>
+
+  <footer id="credits">
+    <div class="logos">
+      <a class="chip" href="https://math.upb.de" target="_blank" rel="noopener"
+         aria-label="Universität Paderborn – math.upb.de">
+        <img class="logo-upb" src="assets/upb_logo.jpg" alt="Universität Paderborn">
+      </a>
+      <a class="chip" href="https://quamath.dzlm.de" target="_blank" rel="noopener"
+         aria-label="QuaMath – quamath.dzlm.de">
+        <img class="logo-qua" src="assets/quamath_logo.jpg"
+             alt="QuaMath – Unterrichts- und Fortbildungs-Qualität in Mathematik entwickeln">
+      </a>
+      <span class="chip">
+        <img class="logo-lian" src="assets/lianmu_logo.svg"
+             alt="LiAnMU – Lineare Algebra und Analytische Geometrie im Mathematikunterricht">
+      </span>
+    </div>
+    <div class="names">Max Hoffmann, Janine Herrmann, Olga Lomas &amp; Lena Wessel</div>
+    <div class="proj">
+      Entwickelt in den Projekten <strong>LiAnMU</strong> – Lineare Algebra und
+      Analytische Geometrie im Mathematikunterricht – und <strong>QuaMath</strong> –
+      Unterrichts- und Fortbildungs-Qualität in Mathematik entwickeln
+      (Deutsches Zentrum für Lehrkräftebildung Mathematik und Leibniz-Institut für die
+      Pädagogik der Naturwissenschaften und Mathematik, gefördert von der
+      Kultusministerkonferenz) · Universität Paderborn
+    </div>
+    <div class="meta">
+      <a href="mailto:max.hoffmann@math.uni-paderborn.de">max.hoffmann@math.uni-paderborn.de</a>
+      · MIT License
+      · entwickelt mit <a href="https://cindyjs.org" target="_blank" rel="noopener">CindyJS</a>
+    </div>
+  </footer>
+</div>
+</body>
+</html>
