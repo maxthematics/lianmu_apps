@@ -66,6 +66,7 @@ petrol75  = [114, 143, 153] / 255;
 petrol50  = [152, 171, 178] / 255;
 petrol25  = [192, 202, 206] / 255;
 petrol10  = [212, 219, 222] / 255;
+petrol5   = [236, 240, 242] / 255;   // very light tint (e.g. Rechnung box)
 petrol    = petrol100;
 
 orange100 = [248, 180, 79]  / 255;
@@ -425,6 +426,37 @@ drawLabel(x, y, text, fs, textcol, halign, valign, showBg, padPx) := (
 drawTextWithBg(pos, text, fs, col, bgcol, padPx, alignment) :=
   drawLabel(pos.x, pos.y, text, fs, col, alignment, "mid", true, padPx);
 
+// Single-line text in a coloured, bordered box centred horizontally in
+// the content area and anchored just above the footer (content bottom),
+// with a left-aligned heading above the box. The body font auto-shrinks
+// from baseFs so the line always fits the content width (important in
+// portrait). Used for the explicit a·b computation.
+drawCenteredBox(text, heading, baseFs, headFs, fillCol, borderCol, txtCol, headCol) := (
+  regional(sr, pad, maxWpx, m0, fs, m, cw, ca, cd, H, W, by0, cx, cy, l, r, bb, tt);
+  sr     = screenresolution();
+  pad    = 12;
+  maxWpx = (axContentRight - axContentLeft) * sr - 4 * pad;
+  m0     = pixelsize(text, size -> baseFs);
+  fs     = if(m0_1 > maxWpx, baseFs * maxWpx / m0_1, baseFs);
+  m      = pixelsize(text, size -> fs);
+  cw = m_1; ca = m_2; cd = m_3;
+  H   = (ca + cd + 2 * pad) / sr;
+  W   = (cw + 2 * pad) / sr;
+  by0 = axContentBottom + 6 / sr;     // box bottom, just above the footer
+  cx  = axContentCx;
+  cy  = by0 + H / 2;
+  l = cx - W / 2; r = cx + W / 2; bb = by0; tt = by0 + H;
+  fillpoly([[l, bb], [r, bb], [r, tt], [l, tt]], color -> fillCol);
+  draw([l, bb], [r, bb], color -> borderCol, size -> 1.2);
+  draw([r, bb], [r, tt], color -> borderCol, size -> 1.2);
+  draw([r, tt], [l, tt], color -> borderCol, size -> 1.2);
+  draw([l, tt], [l, bb], color -> borderCol, size -> 1.2);
+  drawLabel(cx, cy, text, fs, txtCol, "center", "mid", false, pad);
+  // Heading above the box, left-aligned with the body text's left edge
+  // (= the inner padding edge l + pad).
+  drawLabel(l + pad / sr, tt + 7 / sr, heading, headFs, headCol, "left", "base", false, 0);
+);
+
 // ----------------------------------------------------------------
 // Chrome drawing
 // ----------------------------------------------------------------
@@ -637,6 +669,10 @@ texVec(name, v, digits) := (
   "$\vec{" + name + "} " + rel + "\!\, \begin{pmatrix} " + body + " \end{pmatrix}$"
 );
 
+// Number → TeX string, negatives wrapped in parentheses so a product
+// term reads "4 \cdot (-2.87)" instead of "4 \cdot -2.87".
+fmtNeg(x) := if(x < 0, "(" + x + ")", "" + x);
+
 // Point pulse animation -----------------------------------------
 // pulsePoint(P)                       — defaults: base = 5, amp = 3.2, freq = 4
 // pulsePoint(P, base, amp, freq)      — explicit
@@ -652,7 +688,7 @@ pulsePoint(P, base, amp, freq) := (
 // ════════════════════════════════════════════════════════════════
 
 sidebarWantedWpx = 160;   // wider than default (90) to fit button labels
-sidebarWantedHpx = 170;   // tall enough for slider + two stacked buttons
+sidebarWantedHpx = 240;   // tall enough for slider + three stacked buttons
 
 // ---- Text-field backgrounds ------------------------------------
 // Flip any of these to false to make that label transparent (no white
@@ -662,9 +698,13 @@ labelBgComps = true;    // a / b component labels (top-left)
 labelBgSkp   = true;    // scalar-product result next to B
 
 // ---- Length (|b|) slider range / detents -----------------------
-bMin  = 1;     // shortest |b| (slider)
-bMax  = 8;     // longest |b|  (slider)
-bStep = 0.5;   // slider detents
+bMin      = 1;      // shortest |b| (slider)
+bMax      = 8;      // longest |b|  (slider)
+// The slider is continuous but snaps magnetically onto 0.25 multiples:
+// within bSnapTol of a detent it catches the exact value, otherwise it
+// moves freely (rounded to 0.01 so the readout stays clean).
+bSnapStep = 0.25;   // magnetic detents every 0.25
+bSnapTol  = 0.08;   // catch radius around each detent, in |b| units
 // The random-position button uses a narrower range so the start circle
 // stays on screen and clear of the top labels (the slider still 1…8).
 bRandMin = 2;
@@ -738,8 +778,8 @@ adjustBCircle() := (
 // coords via sb(px, py); the thumb maps bLen onto [bMin, bMax].
 drawSidebar() := (
   regional(pad, w, h, btnH, btnPad, btnGap, bL, bR, blkB, blkT,
-           projMouse, distMouse, mouseInBlk, draggingSlider, t, val,
-           rcB, rcT, vkB, vkT, vkTxt);
+           projMouse, distMouse, mouseInBlk, draggingSlider, t, val, snapped,
+           rcB, rcT, vkB, vkT, vkTxt, bcTxt);
 
   w = sbWidthPx();
   h = sbHeightPx();
@@ -747,10 +787,10 @@ drawSidebar() := (
   btnPad = 8;
   btnGap = 8;
 
-  // Slider track sits above the two-button block.
+  // Slider track sits above the three-button block.
   if(!isPortrait,
     pad = 14;
-    slAngS = sb(w/2, 2 * btnH + 2 * btnPad + btnGap + 40);
+    slAngS = sb(w/2, 3 * btnH + 2 * btnPad + 2 * btnGap + 40);
     slAngE = sb(w/2, h - pad);
   ,
     pad = 55;
@@ -758,15 +798,18 @@ drawSidebar() := (
     slAngE = sb(w - pad, h - 46);
   );
 
-  // Button bounds (shared x extent; random at bottom, toggle above).
+  // Button bounds (shared x extent; stacked bottom→top:
+  // random, Vollkreis toggle, Berechnung toggle).
   bL  = sb(btnPad,     btnPad).x;
   bR  = sb(w - btnPad, btnPad).x;
   rcB = sb(btnPad, btnPad).y;
   rcT = sb(btnPad, btnPad + btnH).y;
   vkB = sb(btnPad, btnPad + btnH + btnGap).y;
   vkT = sb(btnPad, 2 * btnH + btnPad + btnGap).y;
+  bcB = sb(btnPad, 2 * btnH + btnPad + 2 * btnGap).y;
+  bcT = sb(btnPad, 3 * btnH + btnPad + 2 * btnGap).y;
   blkB = rcB;   // whole button block, for slider-drag exclusion
-  blkT = vkT;
+  blkT = bcT;
 
   draggingSlider = false;
 
@@ -780,9 +823,11 @@ drawSidebar() := (
                  mouse().y > blkB & mouse().y < blkT;
     if(distMouse < 30 & !mouseInBlk,
       draggingSlider = true;
-      t    = max(0, min(1, projMouse));
-      val  = bMin + t * (bMax - bMin);
-      bLen = round(val / bStep) * bStep;   // snap to bStep detents
+      t       = max(0, min(1, projMouse));
+      val     = bMin + t * (bMax - bMin);
+      snapped = round(val / bSnapStep) * bSnapStep;   // nearest 0.25 detent
+      // Magnetic catch near a detent, otherwise free (rounded to 0.01).
+      bLen    = if(abs(val - snapped) < bSnapTol, snapped, round(val * 100) / 100);
     );
   );
 
@@ -823,23 +868,37 @@ drawSidebar() := (
   drawtext([(bL + bR) / 2, (vkB + vkT) / 2], vkTxt,
            align -> "center", size -> 16, color -> petrol, yoffset -> -16 * 0.27);
   vcL = bL; vcR = bR; vcB = vkB; vcT = vkT;
+
+  // Show-calculation toggle (top of the stack), darker when on.
+  bcTxt = "Rechnung: " + if(showCalc, "an", "aus");
+  fillpoly([[bL, bcB], [bR, bcB], [bR, bcT], [bL, bcT]],
+           color -> if(showCalc, petrol25, petrol10));
+  drawtext([(bL + bR) / 2, (bcB + bcT) / 2], bcTxt,
+           align -> "center", size -> 16, color -> petrol, yoffset -> -16 * 0.27);
+  bcL = bL; bcR = bR;
 );
 
 // ----------------------------------------------------------------
 // Random start position
-// Picks a in Q1 with integer components in {1..4}, a moderate random
-// length |b| (a bStep multiple in [bRandMin, bRandMax]) and a random
-// angle (a 5° multiple in [20°, 160°], but never 90°, so the scalar
-// product is not 0 at the start). B is then placed on the circle.
+// Picks a as a 3-4-5 Pythagorean vector in Q1 so the magnitude |a| is a
+// clean integer or half-integer (2.5 or 5), with a whole-number length
+// |b| in [bRandMin, bRandMax] and a random angle (a 5° multiple in
+// [20°, 160°], but never 90°, so the scalar product is not 0 at the
+// start). Both magnitudes |a| and |b| are therefore integers/half-
+// integers; only the coordinates of b stay irrational. B is then
+// placed on the circle.
 // ----------------------------------------------------------------
 randomStart() := (
-  regional(ax, ay, angA, k);
-  ax = 1 + floor(random() * 4);
-  ay = 1 + floor(random() * 4);
-  A.xy = [ax, ay];
+  regional(aChoices, angA, k);
+  // 3-4-5 vectors in Q1 (also halved): |a| ∈ {5, 2.5}, components are
+  // integers or .5 multiples. The angle of a hardly matters here — only
+  // the angle BETWEEN a and b (angleDiff) is the pedagogical variable.
+  aChoices = [[3, 4], [4, 3], [1.5, 2], [2, 1.5]];
+  A.xy = aChoices_(1 + floor(random() * length(aChoices)));
 
-  // random length: bStep multiples covering [bRandMin, bRandMax]
-  bLen = bRandMin + bStep * floor(random() * ((bRandMax - bRandMin) / bStep + 1));
+  // random length: whole-number values covering [bRandMin, bRandMax],
+  // so |b| is always an integer (b's coordinates remain irrational).
+  bLen = bRandMin + floor(random() * (bRandMax - bRandMin + 1));
 
   // random angle: 5° multiples in [20°, 160°], skipping the 90° step
   // (a·b = 0). 28 steps instead of 29; k = 14 (→ 90°) is jumped over.
@@ -894,7 +953,9 @@ wasPortrait = false;
 
 btnRandL = 0; btnRandR = 0; btnRandT = 0; btnRandB = 0;
 vcL = 0; vcR = 0; vcB = 0; vcT = 0;   // full-circle toggle bounds
+bcL = 0; bcR = 0; bcB = 0; bcT = 0;   // show-calculation toggle bounds
 fullCircle    = false;   // default: half-circle (0°…180°)
+showCalc      = false;   // default: explicit a·b computation hidden
 mouseDownFlag = false;   // tracked via csmousedown / csmouseup
 draggingB     = false;   // true while B is grabbed in display mode
 
@@ -970,33 +1031,51 @@ drawVecsWithAngle();
 // Display values from the FINAL B (after drawVecsWithAngle put it on the
 // circle) — so a·b and the components match the drawn geometry exactly,
 // during the drag and the moment the mouse is released.
-roundedSkpAB = round(100 * A * B) / 100;
-tSkp = if(|roundedSkpAB - A * B| < 0.0001,
-  "$\vec a \bullet \vec b = "       + roundedSkpAB + "$",
-  "$\vec a \bullet \vec b \approx " + roundedSkpAB + "$"
-);
+// The panel shows the components rounded to 2 decimals; the scalar
+// product is computed from EXACTLY those displayed values, so the readout
+// at the arrow tip and the explicit "Rechnung" agree to the last digit.
+rcAx = round(100 * A.x) / 100;   rcAy = round(100 * A.y) / 100;
+rcBx = round(100 * B.x) / 100;   rcBy = round(100 * B.y) / 100;
+roundedSkpAB = round(100 * (rcAx * rcBx + rcAy * rcBy)) / 100;
+// "=" only when nothing had to be rounded (e.g. b is exact), else "≈".
+skpExact = (|rcAx - A.x| < 0.0001) & (|rcAy - A.y| < 0.0001) &
+           (|rcBx - B.x| < 0.0001) & (|rcBy - B.y| < 0.0001);
+tSkp = "$\vec a \bullet \vec b " + if(skpExact, "=", "\approx") + " " + roundedSkpAB + "$";
 tVecA = texVec("a", [A.x, A.y]);
 tVecB = texVec("b", [B.x, B.y]);
 
-// Magnitudes |a| (usually irrational → ≈) and |b| (= the slider value).
+// Magnitudes |a| (integer/half-integer after randomStart; irrational only
+// if A is dragged) and |b| (= the slider value). The = / ≈ test below
+// still picks the right relation in either case.
 absAval = |A - O|;
 rAbsA   = round(100 * absAval) / 100;
 tAbsA   = "$|\vec a| " + if(|rAbsA - absAval| < 0.0001, "=", "\approx") + " " + rAbsA + "$";
 rAbsB   = round(100 * bLen) / 100;
 tAbsB   = "$|\vec b| " + if(|rAbsB - bLen| < 0.0001, "=", "\approx") + " " + rAbsB + "$";
 
+// Explicit a·b computation (shown when the "Rechnung" toggle is on, only
+// in display mode). Form:  a·b = (ax//ay)·(bx//by) = ax·bx + ay·by =
+// result, with column vectors and negative factors in parentheses. Uses
+// the SAME rounded components and the SAME result (roundedSkpAB) as the
+// arrow-tip label, so both readouts always match exactly.
+tCalc = "$\vec a \bullet \vec b " + if(skpExact, "=", "\approx") + " "
+      + "\begin{pmatrix} " + rcAx + " \\ " + rcAy + " \end{pmatrix} \bullet "
+      + "\begin{pmatrix} " + rcBx + " \\ " + rcBy + " \end{pmatrix} = "
+      + rcAx + " \cdot " + fmtNeg(rcBx) + " + " + rcAy + " \cdot " + fmtNeg(rcBy)
+      + " = " + roundedSkpAB + "$";
+
 // 6) Math text overlays (as in the Beträge applet): a·b floats next to
 //    B, and the a / b components sit top-left — inline in landscape,
 //    stacked in portrait. (The full-circle toggle lives in the sidebar.)
 fsSkp   = if(isPortrait, 30, 24);
-fsComps = if(isPortrait, 32, 30);
+fsComps = if(isPortrait, 26, 24);   // vector definitions a=…, b=… (reduced)
 ovPad   = 8;   // background padding around the labels, px
 
 // (The a·b label is drawn LAST — see section 8 — so it always stays on
 //  top of the top-left text fields when B passes behind them.)
 
 // a / b components, with |a| and |b| right below them.
-regional(yBelow);
+regional(yBelow, magFs, magBase);
 if(!isPortrait,
   yBelow = drawLabel(axContentLeft, axContentTop,
     tVecA + if(!editmode, ",    " + tVecB, ""),
@@ -1010,12 +1089,25 @@ if(!isPortrait,
   );
 );
 
-// Magnitudes |a|, |b| just below the component panel (display mode),
-// same petrol as the vectors.
-if(!editmode,
-  drawLabel(axContentLeft, yBelow - 8 / screenresolution(),
-    tAbsA + ",    " + tAbsB,
-    if(isPortrait, 30, 26), colorVector, "left", "top", labelBgComps, ovPad);
+// Magnitudes just below the component panel, same petrol as the vectors:
+// |a| and |b| in display mode, only |a| in edit mode (b is hidden while
+// it is being dragged). Anchored by BASELINE using |a|'s OWN ascent — not
+// the line top — so the |a| field stays at the exact same height between
+// the two modes. ('b' is a taller glyph than 'a', so a top-anchored line
+// would shift its baseline by a couple of px when |b| appears/disappears.)
+magFs   = if(isPortrait, 24, 22);
+magBase = yBelow - (8 + ovPad + pixelsize(tAbsA, size -> magFs)_2) / screenresolution();
+drawLabel(axContentLeft, magBase,
+  tAbsA + if(!editmode, ",    " + tAbsB, ""),
+  magFs, colorVector, "left", "base", labelBgComps, ovPad);
+
+// Explicit a·b computation (toggled by the "Rechnung" switch in edit mode,
+// but only displayed when edit mode is OFF). Single line, centred in a
+// light petrol box just above the footer. In ADDITION to the a·b readout
+// at the vector tip, not a replacement — and shows the identical value.
+if(showCalc & !editmode,
+  drawCenteredBox(tCalc, "Rechnung", if(isPortrait, 22, 22), if(isPortrait, 18, 18),
+                  petrol5, petrol, [0, 0, 0], petrol);
 );
 
 // 7) Chrome on top.
@@ -1061,6 +1153,11 @@ if(editmode &
    mouse().x > vcL & mouse().x < vcR &
    mouse().y > vcB & mouse().y < vcT,
   fullCircle = !fullCircle;
+);
+if(editmode &
+   mouse().x > bcL & mouse().x < bcR &
+   mouse().y > bcB & mouse().y < bcT,
+  showCalc = !showCalc;
 );
 </script>
 
