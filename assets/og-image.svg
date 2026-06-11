@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630"
+     font-family="Helvetica, Arial, sans-serif">
+  <defs>
+    <pattern id="g" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0H0V40" fill="none" stroke="#eef2f3" stroke-width="1.5"/>
+    </pattern>
+    <marker id="ah" markerWidth="9" markerHeight="9" refX="6.5" refY="4" orient="auto">
+      <path d="M0 0 L9 4 L0 8 Z" fill="#327a86"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="630" fill="#ffffff"/>
+  <rect width="1200" height="630" fill="url(#g)"/>
+
+  <!-- vector diagram (right side) -->
+  <path d="M820 450 L904 438 A85 85 0 0 0 857 373 Z" fill="#f8b44f" opacity=".18"/>
+  <path d="M904 438 A85 85 0 0 0 857 373" fill="none" stroke="#f8b44f" stroke-width="7"/>
+  <line x1="820" y1="450" x2="1130" y2="405" stroke="#327a86" stroke-width="9"
+        stroke-linecap="round" marker-end="url(#ah)"/>
+  <line x1="820" y1="450" x2="960" y2="160" stroke="#327a86" stroke-width="9"
+        stroke-linecap="round" marker-end="url(#ah)"/>
+  <circle cx="960" cy="160" r="14" fill="#a44168"/>
+
+  <!-- text (left side) -->
+  <text x="80" y="150" font-size="25" font-weight="700" letter-spacing="4"
+        fill="#327a86">LINEARE ALGEBRA · ANALYTISCHE GEOMETRIE</text>
+  <text x="76" y="252" font-size="82" font-weight="700" fill="#33383a">Skalarprodukt</text>
+  <text x="80" y="332" font-size="56" font-weight="400" fill="#6b7679">interaktive Applets</text>
+  <text x="80" y="432" font-size="33" font-weight="700"
+        fill="#327a86">Winkel · Beträge · gleiche Skalarprodukte</text>
+  <text x="80" y="566" font-size="26" font-weight="500"
+        fill="#6b7679">LiAnMU · QuaMath · Universität Paderborn</text>
+</svg>

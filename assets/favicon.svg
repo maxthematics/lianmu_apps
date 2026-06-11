@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- vector a (shaft + arrowhead) -->
+  <line x1="5" y1="26" x2="23.1" y2="22.3" stroke="#327a86" stroke-width="3" stroke-linecap="round"/>
+  <path d="M27 21.5 L22.6 19.95 L23.56 24.65 Z" fill="#327a86"/>
+  <!-- vector b (shaft + arrowhead) -->
+  <line x1="5" y1="26" x2="14.5" y2="9.5" stroke="#327a86" stroke-width="3" stroke-linecap="round"/>
+  <path d="M16.5 6 L12.43 8.27 L16.59 10.67 Z" fill="#327a86"/>
+  <!-- angle arc -->
+  <path d="M11.9 24.6 A7 7 0 0 0 8.5 19.9" fill="none" stroke="#f8b44f" stroke-width="2.4"/>
+  <!-- draggable point at the b-vector tip -->
+  <circle cx="16.5" cy="6" r="2.6" fill="#a44168"/>
+</svg>
