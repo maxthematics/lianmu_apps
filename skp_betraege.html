@@ -693,7 +693,7 @@ pulsePoint(P, base, amp, freq) := (
 // ════════════════════════════════════════════════════════════════
 
 sidebarWantedWpx = 160;   // wider than default (90) to fit button label
-sidebarWantedHpx = 200;   // taller than default (64) to fit slider + two stacked buttons
+sidebarWantedHpx = 250;   // taller than default (64) to fit slider + three stacked buttons
 
 // ---- Text-field backgrounds ------------------------------------
 // Flip any of these to false to make that label transparent (no white
@@ -746,7 +746,7 @@ adjustBRay() := (
 drawSidebar() := (
   regional(pad, w, h, btnH, btnPad, btnGap, bL, bR, bB, bT,
            slAngVal, projMouse, distMouse, mouseInBtn,
-           draggingSlider, vTrack, t, sl90, tickDir, tickLen, bcTxt);
+           draggingSlider, vTrack, t, sl90, tickDir, tickLen, bcTxt, obTxt);
 
   w = sbWidthPx();
   h = sbHeightPx();
@@ -754,10 +754,10 @@ drawSidebar() := (
   btnPad = 8;
   btnGap = 8;
 
-  // Slider track sits above the two-button block.
+  // Slider track sits above the three-button block.
   if(!isPortrait,
     pad = 14;
-    slAngS = sb(w/2, 2 * btnH + btnPad + btnGap + 38);
+    slAngS = sb(w/2, 3 * btnH + btnPad + 2 * btnGap + 38);
     slAngE = sb(w/2, h - pad);
   ,
     pad = 55;
@@ -765,13 +765,15 @@ drawSidebar() := (
     slAngE = sb(w - pad, h - 46);
   );
 
-  // Button bounds (stacked bottom→top: random, Rechnung toggle).
+  // Button bounds (stacked bottom→top: Stumpfe-Winkel, random, Rechnung).
   bL = sb(btnPad,     btnPad).x;
   bR = sb(w - btnPad, btnPad).x;
-  bB = sb(btnPad,     btnPad).y;
-  bT = sb(btnPad,     btnPad + btnH).y;
-  bcB = sb(btnPad, btnPad + btnH + btnGap).y;
-  bcT = sb(btnPad, 2 * btnH + btnPad + btnGap).y;
+  obB = sb(btnPad,     btnPad).y;
+  obT = sb(btnPad,     btnPad + btnH).y;
+  bB  = sb(btnPad, btnPad + btnH + btnGap).y;
+  bT  = sb(btnPad, 2 * btnH + btnPad + btnGap).y;
+  bcB = sb(btnPad, 2 * btnH + btnPad + 2 * btnGap).y;
+  bcT = sb(btnPad, 3 * btnH + btnPad + 2 * btnGap).y;
 
   draggingSlider = false;
 
@@ -783,7 +785,7 @@ drawSidebar() := (
     distMouse  = |mouse() - (slAngS + max(0, min(1, projMouse)) * (slAngE - slAngS))|
                  * screenresolution();
     mouseInBtn = mouse().x > bL & mouse().x < bR &
-                 mouse().y > bB & mouse().y < bcT;
+                 mouse().y > obB & mouse().y < bcT;
 
     if(distMouse < 30 & !mouseInBtn,
       draggingSlider = true;
@@ -858,6 +860,14 @@ drawSidebar() := (
   drawtext([(bL + bR) / 2, (bcB + bcT) / 2], bcTxt,
            align -> "center", size -> fontScale * 16, color -> petrol, yoffset -> -fontScale * 16 * 0.27);
   bcL = bL; bcR = bR;
+
+  // Obtuse-angle toggle (top): allow obtuse angles in random mode.
+  obTxt = "Stumpfe Winkel: " + if(allowObtuse, "an", "aus");
+  fillpoly([[bL, obB], [bR, obB], [bR, obT], [bL, obT]],
+           color -> if(allowObtuse, petrol25, petrol10));
+  drawtext([(bL + bR) / 2, (obB + obT) / 2], obTxt,
+           align -> "center", size -> fontScale * 15, color -> petrol, yoffset -> -fontScale * 15 * 0.27);
+  obL = bL; obR = bR;
 );
 
 // ----------------------------------------------------------------
@@ -869,7 +879,7 @@ drawSidebar() := (
 // which is consumed in csdraw after adjustBRay() has updated bRay.
 // ----------------------------------------------------------------
 randomStart() := (
-  regional(ax, ay, px, py, aA, aB, t, qx, qy);
+  regional(ax, ay, px, py, aA, aB, t, qx, qy, bDir, r);
 
   // Vector a: integer components in {1..4}
   ax = 1 + floor(random() * 4);
@@ -907,6 +917,21 @@ randomStart() := (
 
   pendingBxy      = [px, py];
   pendingSlAngVal = angleDiff / 180°;
+
+  // "Stumpfe Winkel": with allowObtuse on, mirror the acute angle θ across
+  // 90° to 180°−θ (so the obtuse range is exactly the reflected acute one,
+  // e.g. 30°–62° → 118°–150°). Done for ~half the draws, so acute angles
+  // still occur too. b then points along that direction; the start |b|
+  // keeps the magnitude of the acute lattice point.
+  if(allowObtuse & random() < 0.5,
+    r               = sqrt(px^2 + py^2);
+    angleDiff       = 180° - angleDiff;
+    bDir            = aA + angleDiff;
+    B0.xy           = [cos(bDir), sin(bDir)];
+    C.xy            = 100 * [cos(bDir), sin(bDir)];
+    pendingBxy      = r * [cos(bDir), sin(bDir)];
+    pendingSlAngVal = angleDiff / 180°;
+  );
 
   // If the track is already known, move slAngP immediately so there is
   // no one-frame lag. pendingSlAngVal + skipSnap still handle the startup
@@ -952,7 +977,9 @@ wasPortrait = false;
 
 btnRandL = 0; btnRandR = 0; btnRandT = 0; btnRandB = 0;
 bcL = 0; bcR = 0; bcB = 0; bcT = 0;   // show-calculation toggle bounds
+obL = 0; obR = 0; obB = 0; obT = 0;   // obtuse-angle toggle bounds
 showCalc        = false;   // explicit a·b computation hidden by default
+allowObtuse     = false;   // random mode: obtuse angles disabled by default
 mouseDownFlag   = false;   // tracked via csmousedown / csmouseup
 skipSnap        = false;
 pendingBxy      = [99999, 99999];
@@ -1112,6 +1139,11 @@ if(editmode &
    mouse().x > bcL & mouse().x < bcR &
    mouse().y > bcB & mouse().y < bcT,
   showCalc = !showCalc;
+);
+if(editmode &
+   mouse().x > obL & mouse().x < obR &
+   mouse().y > obB & mouse().y < obT,
+  allowObtuse = !allowObtuse;
 );
 </script>
 
