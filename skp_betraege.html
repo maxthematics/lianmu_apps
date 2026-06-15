@@ -923,7 +923,7 @@ randomStart() := (
   // e.g. 30°–62° → 118°–150°). Done for ~half the draws, so acute angles
   // still occur too. b then points along that direction; the start |b|
   // keeps the magnitude of the acute lattice point.
-  if(allowObtuse & random() < 0.5,
+  if(allowObtuse & obtuseReady & random() < 0.5,
     r               = sqrt(px^2 + py^2);
     angleDiff       = 180° - angleDiff;
     bDir            = aA + angleDiff;
@@ -979,13 +979,15 @@ btnRandL = 0; btnRandR = 0; btnRandT = 0; btnRandB = 0;
 bcL = 0; bcR = 0; bcB = 0; bcT = 0;   // show-calculation toggle bounds
 obL = 0; obR = 0; obB = 0; obT = 0;   // obtuse-angle toggle bounds
 showCalc        = false;   // explicit a·b computation hidden by default
-allowObtuse     = false;   // random mode: obtuse angles disabled by default
+allowObtuse     = true;    // random mode: obtuse angles allowed by default
+obtuseReady     = false;   // …but the FIRST (startup) position is always acute
 mouseDownFlag   = false;   // tracked via csmousedown / csmouseup
 skipSnap        = false;
 pendingBxy      = [99999, 99999];
 pendingSlAngVal = -1;
 
 randomStart();
+obtuseReady = true;   // from now on "Zufällige Position" may produce obtuse angles
 
 resetclock();
 playAnimation();
