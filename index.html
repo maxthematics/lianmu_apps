@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Skalarprodukt – interaktive Applets</title>
-<meta name="description" content="Interaktive Applets zum Skalarprodukt – Winkel, Beträge und gleiche Skalarprodukte. Direkt im Browser auf Computer, Tablet und Smartphone. Entwickelt in den Projekten LiAnMU und QuaMath.">
+<meta name="description" content="Interaktive Applets zum Skalarprodukt – Winkel, Beträge, gleiche Skalarprodukte und cleveres Messen mit dem Geodreieck. Direkt im Browser auf Computer, Tablet und Smartphone. Entwickelt in den Projekten LiAnMU und QuaMath.">
 <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
 
 <!-- Social-/Link-Vorschau (Open Graph + Twitter).
@@ -15,14 +15,14 @@
 <meta property="og:locale" content="de_DE">
 <meta property="og:site_name" content="Skalarprodukt – interaktive Applets">
 <meta property="og:title" content="Skalarprodukt – interaktive Applets">
-<meta property="og:description" content="Winkel, Beträge und gleiche Skalarprodukte – interaktiv im Browser auf jedem Gerät erkunden.">
+<meta property="og:description" content="Winkel, Beträge, gleiche Skalarprodukte und Messen mit dem Geodreieck – interaktiv im Browser auf jedem Gerät erkunden.">
 <meta property="og:image" content="assets/og-image.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="Skalarprodukt – interaktive Applets (Vektordiagramm mit Winkel)">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Skalarprodukt – interaktive Applets">
-<meta name="twitter:description" content="Winkel, Beträge und gleiche Skalarprodukte – interaktiv im Browser auf jedem Gerät erkunden.">
+<meta name="twitter:description" content="Winkel, Beträge, gleiche Skalarprodukte und Messen mit dem Geodreieck – interaktiv im Browser auf jedem Gerät erkunden.">
 <meta name="twitter:image" content="assets/og-image.png">
 <style>
   :root{
@@ -46,7 +46,7 @@
     line-height:1.6;
     -webkit-font-smoothing:antialiased;
   }
-  .wrap{max-width:980px;margin:0 auto;padding:clamp(2rem,6vw,5rem) clamp(1.1rem,4vw,2rem) 3rem}
+  .wrap{max-width:1120px;margin:0 auto;padding:clamp(2rem,6vw,5rem) clamp(1.1rem,4vw,2rem) 3rem}
 
   header{margin-bottom:clamp(2rem,5vw,3.2rem)}
   .kicker{
@@ -68,10 +68,14 @@
     border-bottom:1px solid rgba(50,122,134,.4)}
   .feedback a:hover{border-bottom-color:var(--petrol)}
 
+  /* Column count is always a divisor of the 4 cards (1, 2 or 4), so a lone
+     "3 + 1" orphan row can never occur — only 1×4, 2×2 or 4×1 layouts. */
   .grid{
     display:grid;gap:clamp(1rem,2.5vw,1.5rem);
-    grid-template-columns:repeat(auto-fit,minmax(248px,1fr))
+    grid-template-columns:1fr                       /* phone: single column (1×4) */
   }
+  @media (min-width:600px){ .grid{grid-template-columns:repeat(2,1fr)} }   /* tablet: 2×2 */
+  @media (min-width:1000px){ .grid{grid-template-columns:repeat(4,1fr)} }  /* desktop: one row (4×1) */
   .card{
     display:flex;flex-direction:column;
     background:var(--card);border:1px solid var(--line);border-radius:16px;
@@ -232,6 +236,48 @@
       <div class="body">
         <h2>Gleiche Skalarprodukte</h2>
         <p>Welche anderen Vektoren haben mit <em>a</em> dasselbe Skalarprodukt wie <em>b</em>?</p>
+        <span class="open">Öffnen <span class="arr">→</span></span>
+      </div>
+    </a>
+
+    <!-- Clever messen (Geodreieck) -->
+    <a class="card" href="skp_clevermessen.html">
+      <svg class="thumb" viewBox="0 0 300 170" role="img"
+           aria-label="Diagramm: zwei Vektoren mit Winkel und daneben ein Geodreieck mit Winkelmesser-Halbkreis">
+        <rect width="300" height="170" fill="url(#grid)"/>
+        <!-- the two vectors with their angle (left, kept clear of the tool) -->
+        <path d="M38 142 L65.7 137.8 A28 28 0 0 0 52 117.8 Z" fill="#f8b44f" opacity=".18"/>
+        <path d="M65.7 137.8 A28 28 0 0 0 52 117.8" fill="none" stroke="#f8b44f" stroke-width="3"/>
+        <line x1="38" y1="142" x2="150" y2="125" stroke="#327a86" stroke-width="4"
+              stroke-linecap="round" marker-end="url(#ah)"/>
+        <line x1="38" y1="142" x2="96" y2="42" stroke="#327a86" stroke-width="4"
+              stroke-linecap="round" marker-end="url(#ah)"/>
+        <circle cx="96" cy="42" r="6" fill="#a44168"/>
+        <!-- Geodreieck (set square), separate in the lower-right corner -->
+        <polygon points="168,152 290,152 229,86" fill="#f8b44f" opacity=".13"/>
+        <polygon points="168,152 290,152 229,86" fill="none" stroke="#8a7a5c"
+                 stroke-width="2" stroke-linejoin="round"/>
+        <!-- protractor: semicircle on the long edge, 90° mark up to the apex -->
+        <path d="M183 152 A46 46 0 0 1 275 152" fill="none" stroke="#b6a988" stroke-width="1.5"/>
+        <line x1="229" y1="152" x2="229" y2="110" stroke="#b6a988" stroke-width="1.1"/>
+        <g stroke="#b6a988" stroke-width="1.1">
+          <line x1="268.8" y1="129" x2="262.8" y2="132.5"/>
+          <line x1="252" y1="112.2" x2="248.5" y2="118.2"/>
+          <line x1="206" y1="112.2" x2="209.5" y2="118.2"/>
+          <line x1="189.2" y1="129" x2="195.2" y2="132.5"/>
+        </g>
+        <!-- length scale along the long edge -->
+        <g stroke="#8a7a5c" stroke-width="1.1">
+          <line x1="192" y1="152" x2="192" y2="147"/>
+          <line x1="210" y1="152" x2="210" y2="147"/>
+          <line x1="228" y1="152" x2="228" y2="147"/>
+          <line x1="246" y1="152" x2="246" y2="147"/>
+          <line x1="264" y1="152" x2="264" y2="147"/>
+        </g>
+      </svg>
+      <div class="body">
+        <h2>Skalarprodukt clever messen</h2>
+        <p>Wie lässt sich das Skalarprodukt geschickt mit dem Geodreieck messen?</p>
         <span class="open">Öffnen <span class="arr">→</span></span>
       </div>
     </a>

@@ -41,7 +41,7 @@
 // ════════════════════════════════════════════════════════════════
 // APPLET CONFIG — edit per applet
 // ════════════════════════════════════════════════════════════════
-appletTitle        = "Skalarprodukt und Beträge";
+appletTitle        = "Das Skalarprodukt „clever messen“";
 appletAuthors      = "Max Hoffmann, Janine Herrmann, Olga Lomas & Lena Wessel";
 appletAffiliations = "QuaMath (DZLM + IPN, gef. v. KMK) | LiAnMU | Universität Paderborn";
 appletContact      = "max.hoffmann@math.uni-paderborn.de";
@@ -692,8 +692,8 @@ pulsePoint(P, base, amp, freq) := (
 // APPLET LOGIC — applet-specific drawing and state
 // ════════════════════════════════════════════════════════════════
 
-sidebarWantedWpx = 160;   // wider than default (90) to fit button label
-sidebarWantedHpx = 250;   // taller than default (64) to fit slider + three stacked buttons
+sidebarWantedWpx = 160;   // wider than default (90) to fit button labels
+sidebarWantedHpx = 170;   // fits three stacked edit-mode buttons
 
 // ---- Text-field backgrounds ------------------------------------
 // Flip any of these to false to make that label transparent (no white
@@ -702,260 +702,275 @@ labelBgTitle = true;    // applet title (top-left)
 labelBgComps = true;    // a / b component labels (top-left)
 labelBgSkp   = true;    // scalar-product result next to B
 
-// Clamp B back into the visible area (called after α changes).
-clampMargin = 0.7;
+// ---- Geometry helpers ------------------------------------------
+crossz(u, v) := u.x * v.y - u.y * v.x;
 
-clampBToScreen() := (
-  regional(dx, dy, tmax, xlo, xhi, ylo, yhi);
-  xlo = xmin + clampMargin;  xhi = xmax - clampMargin;
-  ylo = ymin + clampMargin;  yhi = ymax - clampMargin;
-  if(B.x < xlo % B.x > xhi % B.y < ylo % B.y > yhi,
-    dx = B0.x;  dy = B0.y;
-    tmax = 10000;
-    if(|dx| > 0.0001,
-      if(dx > 0, tmax = min(tmax, (xhi - O.x) / dx),
-                 tmax = min(tmax, (xlo - O.x) / dx))
-    );
-    if(|dy| > 0.0001,
-      if(dy > 0, tmax = min(tmax, (yhi - O.y) / dy),
-                 tmax = min(tmax, (ylo - O.y) / dy))
-    );
-    B.xy = O.xy + tmax * [dx, dy];
+distToSeg(P, S, E) := (
+  regional(d, t);
+  d = E - S;
+  if(|d| < 0.0001, |P - S|,
+    t = max(0, min(1, ((P - S) * d) / (d * d)));
+    |P - (S + t * d)|
   );
 );
 
-// Dashed ray for B (from O in direction B0). C is the far endpoint.
-// C sits at a FIXED world distance (rayLen), not the screen diagonal:
-// B is a PointOnSegment on O–C, so |b| = parameter · |O–C|. Tying that
-// length to the viewport made the dot product drift on every resize.
-// rayLen (50) exceeds the largest visible extent (~30 units at any
-// window size, since the scale is kept constant), so the dashed line
-// still runs to the screen edge; clampBToScreen keeps a dragged B
-// inside the visible area.
-rayLen = 50;
-adjustBRay() := (
-  C.xy = O + rayLen * (B0.xy - O);
-  if(!editmode,
-    draw(O, C, size -> 3, color -> wineRed, dashtype -> 3);
+pointInTri(P, Aa, Bb, Cc) := (
+  regional(d1, d2, d3, neg, pos);
+  d1 = crossz(P - Aa, Bb - Aa);
+  d2 = crossz(P - Bb, Cc - Bb);
+  d3 = crossz(P - Cc, Aa - Cc);
+  neg = (d1 < 0) % (d2 < 0) % (d3 < 0);
+  pos = (d1 > 0) % (d2 > 0) % (d3 > 0);
+  !(neg & pos);
+);
+
+// projection of P onto the line through Pt with unit direction dir
+projOntoLine(P, Pt, dir) := Pt + ((P - Pt) * dir) * dir;
+
+// ---- Two free vectors a = OA, b = OB ---------------------------
+drawVecs() := (
+  drawArrow(O, B, "b", vecSettingsL, colorVector);
+  drawArrow(O, A, "a", vecSettingsR, colorVector);
+);
+
+// ════════════════════════════════════════════════════════════════
+// GEODREIECK (set square): movable + rotatable measuring/drawing tool
+// Local frame: long edge from (-gHalf,0)..(gHalf,0); right-angle peak
+// at (0,gPeak). gP = world position of the long-edge midpoint (scale 0);
+// gAng = rotation of the long edge. Scale spans the applet's units.
+// ════════════════════════════════════════════════════════════════
+geoPt(lx, ly) := gP + [lx * cos(gAng) - ly * sin(gAng),
+                       lx * sin(gAng) + ly * cos(gAng)];
+
+// Circular double-arrow icon (rotation affordance) centred at c.
+arcPts(c, R, t1, t2, n) := apply(0..n, j,
+  c + R * [cos(t1 + (t2 - t1) * j / n), sin(t1 + (t2 - t1) * j / n)]);
+
+drawRotArrow(c, R, t1, t2, col) := (
+  regional(tip, tdir, rad, base);
+  connect(arcPts(c, R, t1, t2, 16), color -> col, size -> 3, border -> false);
+  tip  = c + R * [cos(t2), sin(t2)];
+  tdir = [-sin(t2), cos(t2)];        // CCW tangent at the arc end
+  rad  = [cos(t2), sin(t2)];         // radial
+  base = tip - 0.30 * tdir;
+  fillpoly([tip, base + 0.20 * rad, base - 0.20 * rad], color -> col);
+);
+
+drawRotIcon(c, R, col) := (
+  drawRotArrow(c, R,  25°, 155°, col);
+  drawRotArrow(c, R, 205°, 335°, col);
+);
+
+// Snap the long-edge angle so an edge becomes parallel OR orthogonal
+// (same thing mod 90°) to a, b, or the grid axes — within 5°.
+snapAngle(ang) := (
+  regional(targets, best, bestd, k, cand, dd);
+  targets = [arctan2(A - O), arctan2(B - O), 0];
+  best = ang;  bestd = 9999;
+  forall(targets, tb,
+    k    = round((ang - tb) / 90°);
+    cand = tb + k * 90°;
+    dd   = |ang - cand|;
+    if(dd < bestd, bestd = dd;  best = cand);
+  );
+  if(bestd < 5°, best, ang);
+);
+
+drawGeodreieck() := (
+  regional(V1, V2, V3, k, j, x, tlen, isInt, hp, rr, edgC, midC, hintC);
+  V1 = geoPt(-gHalf, 0);  V2 = geoPt(gHalf, 0);  V3 = geoPt(0, gPeak);
+  edgC  = [0.30, 0.26, 0.20];
+  midC  = [0.42, 0.36, 0.28];
+  hintC = [0.58, 0.52, 0.44];
+  fillpoly([V1, V2, V3], color -> orange, alpha -> 0.12);
+  draw(V1, V2, color -> edgC, size -> 2.2);
+  draw(V1, V3, color -> edgC, size -> 2.2);
+  draw(V2, V3, color -> edgC, size -> 2.2);
+  // perpendicular centre line (thicker — for orthogonal alignment / lot)
+  draw(geoPt(0, 0), geoPt(0, gPeak), color -> midC, size -> 1.8);
+  // hint at the protractor semicircle (centre = scale 0): the arc plus
+  // degree ticks every 10°, a little longer every 30°.
+  rr = 4.6;
+  connect(apply(0..36, j, geoPt(rr * cos(j * 5°), rr * sin(j * 5°))),
+          color -> hintC, size -> 1.1, border -> false);
+  forall(0..18, j,
+    tlen = if(mod(j, 3) == 0, 0.34, 0.16);
+    draw(geoPt(rr * cos(j * 10°), rr * sin(j * 10°)),
+         geoPt((rr - tlen) * cos(j * 10°), (rr - tlen) * sin(j * 10°)),
+         color -> hintC, size -> 1);
+  );
+  // scale on the long edge: 0.1 marks; 0 centred; the ends (±gHalf) stay bare
+  forall(0..(20 * gHalf), k,
+    x = (k - 10 * gHalf) / 10;
+    if(abs(x) < gHalf,
+      isInt = (mod(k, 10) == 0);
+      tlen  = if(isInt, 0.34, if(mod(k, 5) == 0, 0.26, 0.14));
+      draw(geoPt(x, 0), geoPt(x, tlen), color -> edgC, size -> if(isInt, 1.4, 0.9));
+      if(isInt,
+        drawtext(geoPt(x, 0.5), "" + abs(round(x)),
+                 align -> "center", size -> fontScale * 14, color -> edgC);
+      );
+    );
+  );
+  // rotate knob: inside near the apex (stays in frame). Orange circular
+  // double-arrow signals "rotate"; distinct from the petrol vectors.
+  hp = geoPt(0, gPeak - 1.2);
+  drawRotIcon(hp, 0.5, orange);
+  draw(hp, color -> orange, size -> 6);
+);
+
+drawDrawnLines() := (
+  forall(drawnLines, seg, draw(seg_1, seg_2, color -> wineRed, size -> 5));
+  if(drawing, draw(curA, curB, color -> wineRed, size -> 5));
+);
+
+// Continuous update while the mouse is held (display mode).
+geoUpdateDrag() := (
+  regional(m);
+  if(mouseDownFlag,
+    m = mouse();
+    if(gMode == "move",   gP   = m - gOff);
+    if(gMode == "rotate", gAng = snapAngle(arctan2(m - gP) - 90°));
+    if(gMode == "draw",   curB = projOntoLine(m, drawEP, drawED));
   );
 );
 
-// Sidebar contents: the α-slider. Uses sidebar-local pixel coords
-// via sb(px, py); width / height come from sbWidthPx / sbHeightPx so
-// the slider rescales with the sidebar.
+// Edit-mode sidebar: three stacked buttons (bottom→top):
+//   "Zufällige Position", "Stumpfe Winkel: an/aus", "Geodreieck zurück".
 drawSidebar() := (
-  regional(pad, w, h, btnH, btnPad, btnGap, bL, bR, bB, bT,
-           slAngVal, projMouse, distMouse, mouseInBtn,
-           draggingSlider, vTrack, t, sl90, tickDir, tickLen, bcTxt, obTxt);
-
-  w = sbWidthPx();
-  h = sbHeightPx();
-  btnH   = 36;
-  btnPad = 8;
-  btnGap = 8;
-
-  // Slider track sits above the three-button block.
-  if(!isPortrait,
-    pad = 14;
-    slAngS = sb(w/2, 3 * btnH + btnPad + 2 * btnGap + 38);
-    slAngE = sb(w/2, h - pad);
-  ,
-    pad = 55;
-    slAngS = sb(pad,     h - 46);
-    slAngE = sb(w - pad, h - 46);
-  );
-
-  // Button bounds (stacked bottom→top: Stumpfe-Winkel, random, Rechnung).
+  regional(w, h, btnH, btnPad, btnGap, bL, bR, y0, y1, y2, y3, y4, y5);
+  w = sbWidthPx();  h = sbHeightPx();
+  btnH = 36;  btnPad = 8;  btnGap = 8;
   bL = sb(btnPad,     btnPad).x;
   bR = sb(w - btnPad, btnPad).x;
-  obB = sb(btnPad,     btnPad).y;
-  obT = sb(btnPad,     btnPad + btnH).y;
-  bB  = sb(btnPad, btnPad + btnH + btnGap).y;
-  bT  = sb(btnPad, 2 * btnH + btnPad + btnGap).y;
-  bcB = sb(btnPad, 2 * btnH + btnPad + 2 * btnGap).y;
-  bcT = sb(btnPad, 3 * btnH + btnPad + 2 * btnGap).y;
+  y0 = sb(btnPad, btnPad).y;
+  y1 = sb(btnPad, btnPad + btnH).y;
+  y2 = sb(btnPad, btnPad + btnH + btnGap).y;
+  y3 = sb(btnPad, 2 * btnH + btnPad + btnGap).y;
+  y4 = sb(btnPad, 2 * btnH + btnPad + 2 * btnGap).y;
+  y5 = sb(btnPad, 3 * btnH + btnPad + 2 * btnGap).y;
 
-  draggingSlider = false;
-
-  // Robust drag detection. CindyJS has no isdown() builtin, so the
-  // mouse-button state is tracked via the csmousedown / csmouseup
-  // event scripts in mouseDownFlag.
-  if(mouseDownFlag & |slAngE - slAngS| > 0.001,
-    projMouse  = ((mouse() - slAngS) * (slAngE - slAngS)) / |slAngE - slAngS|^2;
-    distMouse  = |mouse() - (slAngS + max(0, min(1, projMouse)) * (slAngE - slAngS))|
-                 * screenresolution();
-    mouseInBtn = mouse().x > bL & mouse().x < bR &
-                 mouse().y > obB & mouse().y < bcT;
-
-    if(distMouse < 30 & !mouseInBtn,
-      draggingSlider = true;
-
-      // project mouse to track and move thumb
-      t = max(0, min(1, projMouse));
-
-      // snapping
-      snapVals   = [0.25, 0.5, 0.75];
-      snapRadius = 0.04;
-      forall(snapVals, s,
-        if(|t - s| < snapRadius, t = s);
-      );
-
-      slAngP.xy = slAngS + t * (slAngE - slAngS);
-      angleDiff = t * 180°;
-    );
-  );
-
-  // only mirror angleDiff when NOT dragging
-  if(!draggingSlider,
-    slAngP.xy = slAngS + (angleDiff / 180°) * (slAngE - slAngS);
-  );
-
-  slAngP.color = colorAngle;
-  draw(slAngS, slAngE, color -> colorAngle, size -> 8);
-  slAngP.size = 12;
-
-  if(!isPortrait,
-    drawtext(slAngS, "0°",   yoffset -> -25, color -> colorAngle, size -> fontScale * 24, align -> "center");
-    drawtext(slAngE, "180°", yoffset ->  20, color -> colorAngle, size -> fontScale * 24, align -> "center");
-  ,
-    drawtext(slAngS, "0°",   xoffset -> -8, color -> colorAngle, size -> fontScale * 22, align -> "right");
-    drawtext(slAngE, "180°", xoffset ->  8, color -> colorAngle, size -> fontScale * 22, align -> "left");
-  );
-
-  // 90° marker at the slider midpoint (the snap position): a short tick
-  // across the track plus a label, placed clear of the moving α label
-  // (α sits to the right / above the thumb).
-  sl90    = 0.5 * (slAngS + slAngE);
-  tickDir = perpVec(slAngE - slAngS);
-  tickLen = 11 / screenresolution();
-  draw(sl90 - tickLen * tickDir, sl90 + tickLen * tickDir,
-       color -> colorAngle, size -> 4);
-  if(!isPortrait,
-    drawtext(sl90, "90°", xoffset -> -16, align -> "right",
-             color -> colorAngle, size -> fontScale * 22);
-  ,
-    // Above the track (below would clash with the button row). Sits just
-    // under the α label, which only meets it when the angle really is 90°.
-    drawtext(sl90, "90°", yoffset -> 22, align -> "center",
-             color -> colorAngle, size -> fontScale * 20);
-  );
-
-  if(isPortrait,
-    drawtext(slAngP.xy, "$\alpha$", yoffset -> 28, align -> "center", size -> fontScale * 22, color -> colorAngle);
-  ,
-    drawtext(slAngP.xy, "$\alpha$", xoffset -> 18, align -> "left", size -> fontScale * 24, color -> colorAngle);
-  );
-
-  // Button draw (random at the bottom).
-  fillpoly([[bL, bB], [bR, bB], [bR, bT], [bL, bT]], color -> petrol10);
-  drawtext([(bL + bR) / 2, (bB + bT) / 2], "Zufällige Position",
+  btnRandL = bL; btnRandR = bR; btnRandB = y0; btnRandT = y1;
+  fillpoly([[bL, y0], [bR, y0], [bR, y1], [bL, y1]], color -> petrol10);
+  drawtext([(bL + bR) / 2, (y0 + y1) / 2], "Zufällige Position",
            align -> "center", size -> fontScale * 16, color -> petrol, yoffset -> -fontScale * 16 * 0.27);
-  btnRandL = bL; btnRandR = bR;
-  btnRandB = bB; btnRandT = bT;
 
-  // Show-calculation toggle (above the random button), darker when on.
-  bcTxt = "Rechnung: " + if(showCalc, "an", "aus");
-  fillpoly([[bL, bcB], [bR, bcB], [bR, bcT], [bL, bcT]],
-           color -> if(showCalc, petrol25, petrol10));
-  drawtext([(bL + bR) / 2, (bcB + bcT) / 2], bcTxt,
-           align -> "center", size -> fontScale * 16, color -> petrol, yoffset -> -fontScale * 16 * 0.27);
-  bcL = bL; bcR = bR;
-
-  // Obtuse-angle toggle (top): allow obtuse angles in random mode.
-  obTxt = "Stumpfe Winkel: " + if(allowObtuse, "an", "aus");
-  fillpoly([[bL, obB], [bR, obB], [bR, obT], [bL, obT]],
-           color -> if(allowObtuse, petrol25, petrol10));
-  drawtext([(bL + bR) / 2, (obB + obT) / 2], obTxt,
+  obL = bL; obR = bR; obB = y2; obT = y3;
+  fillpoly([[bL, y2], [bR, y2], [bR, y3], [bL, y3]], color -> if(allowObtuse, petrol25, petrol10));
+  drawtext([(bL + bR) / 2, (y2 + y3) / 2], "Stumpfe Winkel: " + if(allowObtuse, "an", "aus"),
            align -> "center", size -> fontScale * 15, color -> petrol, yoffset -> -fontScale * 15 * 0.27);
-  obL = bL; obR = bR;
+
+  btnResetL = bL; btnResetR = bR; btnResetB = y4; btnResetT = y5;
+  fillpoly([[bL, y4], [bR, y4], [bR, y5], [bL, y5]], color -> petrol10);
+  drawtext([(bL + bR) / 2, (y4 + y5) / 2], "Geodreieck zurück",
+           align -> "center", size -> fontScale * 15, color -> petrol, yoffset -> -fontScale * 15 * 0.27);
 );
 
 // ----------------------------------------------------------------
-// Random start position
-// Picks a in Q1 with integer components in {1..4},
-// b-direction in Q1 with integer components in {1..3} (not parallel
-// to a → guarantees lattice points on the ray, angle ≠ 0° and < 90°).
-// B is placed at the first lattice point [px, py] via pendingBxy,
-// which is consumed in csdraw after adjustBRay() has updated bRay.
+// Random start position: a in Q1 with integer components in {1..4};
+// b a lattice point [px, py] with angle ≥ 30° to a. With allowObtuse on
+// (and after the first, acute startup) ~half the draws mirror the acute
+// angle θ across 90° to 180°−θ → obtuse (b then non-lattice).
 // ----------------------------------------------------------------
 randomStart() := (
-  regional(ax, ay, px, py, aA, aB, t, qx, qy, bDir, r);
+  regional(ax, ay, px, py, aA, t, qx, qy, theta, bDir, r);
 
-  // Vector a: integer components in {1..4}
   ax = 1 + floor(random() * 4);
   ay = 1 + floor(random() * 4);
-
-  // b direction: integer components in {1..4}, angle diff >= 30°
   aA = arctan2([ax, ay]);
+
   px = 1; py = 2;
   repeat(40,
     qx = 1 + floor(random() * 4);
     qy = 1 + floor(random() * 4);
     if(|arctan2([qx, qy]) - aA| >= 30°, px = qx; py = qy);
   );
-
-  // Guaranteed fallback for near-45° a vectors where the loop may fail
   if(|arctan2([px, py]) - aA| < 30°,
     if(aA >= 45°, px = 4; py = 1, px = 1; py = 4);
   );
-
-  // Ensure b is counter-clockwise from a (angleDiff > 0)
+  // ensure b is counter-clockwise from a
   if(py * ax < ay * px,
     t = ax; ax = px; px = t;
     t = ay; ay = py; py = t;
   );
 
-  // Apply to geometry
-  A.xy      = [ax, ay];
-  aA        = arctan2([ax, ay]);
-  aB        = arctan2([px, py]);
-  angleDiff = aB - aA;
+  aA    = arctan2([ax, ay]);
+  theta = arctan2([px, py]) - aA;
+  vecA  = [ax, ay];     // a as a vector (relative to the shared origin)
+  vecB  = [px, py];
 
-  // Pre-position B0 and C so bRay is ready before the first csdraw
-  B0.xy = [cos(aB), sin(aB)];
-  C.xy  = 100 * [cos(aB), sin(aB)];
-
-  pendingBxy      = [px, py];
-  pendingSlAngVal = angleDiff / 180°;
-
-  // "Stumpfe Winkel": with allowObtuse on, mirror the acute angle θ across
-  // 90° to 180°−θ (so the obtuse range is exactly the reflected acute one,
-  // e.g. 30°–62° → 118°–150°). Done for ~half the draws, so acute angles
-  // still occur too. b then points along that direction; the start |b|
-  // keeps the magnitude of the acute lattice point.
+  // "Stumpfe Winkel": mirror θ → 180°−θ (~half the draws, never the first)
   if(allowObtuse & obtuseReady & random() < 0.5,
-    r               = sqrt(px^2 + py^2);
-    angleDiff       = 180° - angleDiff;
-    bDir            = aA + angleDiff;
-    B0.xy           = [cos(bDir), sin(bDir)];
-    C.xy            = 100 * [cos(bDir), sin(bDir)];
-    pendingBxy      = r * [cos(bDir), sin(bDir)];
-    pendingSlAngVal = angleDiff / 180°;
+    r    = sqrt(px^2 + py^2);
+    bDir = aA + (180° - theta);
+    vecB = [round(10 * r * cos(bDir)) / 10, round(10 * r * sin(bDir)) / 10];
   );
 
-  // If the track is already known, move slAngP immediately so there is
-  // no one-frame lag. pendingSlAngVal + skipSnap still handle the startup
-  // case and prevent the 45°/90°/135° snap from rounding the new angle.
-  if(|slAngE - slAngS| > 0.001,
-    slAngP.xy = slAngS + pendingSlAngVal * (slAngE - slAngS);
-  );
+  needsCenter = true;   // re-centre the figure on the next frame
 );
 
-// Main drawing: angle α and arrows a, b. Angle drawn behind arrows.
-drawVecsWithAngle() := (
-  if(|A - O| > 0.0001,
-    A0.xy  = A / |A|;
-    angleA = arctan2(A - O);
-    angleB = angleA + angleDiff;
-    B0.xy  = O + (cos(angleB), sin(angleB));
-    drawAngleC(A0, B0, O,
-      min(4, 4 * .5 * |B.xy - O| / |B0.xy - O|),
-      "\alpha");
+// Place the shared origin O so the figure (O and both tips) is centred
+// in the drawing area; A and B follow from the stored relative vectors.
+centerFigure() := (
+  regional(mnx, mxx, mny, mxy, bx, by, cx, cy);
+  mnx = min(0, min(vecA.x, vecB.x));  mxx = max(0, max(vecA.x, vecB.x));
+  mny = min(0, min(vecA.y, vecB.y));  mxy = max(0, max(vecA.y, vecB.y));
+  bx = (mnx + mxx) / 2;  by = (mny + mxy) / 2;        // figure centre rel. to O
+  cx = (axLeft + axRight) / 2;
+  cy = (axContentTop + axContentBottom) / 2;
+  O.xy = [cx - bx, cy - by];
+  A.xy = O.xy + vecA;
+  B.xy = O.xy + vecB;
+);
+
+// ---- Shareable situation code (compact Base36) -----------------
+// The situation = the two vectors a, b. Each component is quantised to
+// 0.1 and clamped to [-9.9, 9.9] → an integer 0..198; the four values are
+// packed base-200 into one number and written as a fixed 6-char Base36
+// code (0–9, A–Z) — short enough to type by hand. It is shown in the
+// applet; append it to the URL (…#CODE) to reproduce the exact start.
+B36 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+clampU(c) := max(0, min(198, round(c * 10) + 99));   // component → 0..198
+
+toB36(n) := (
+  regional(s, d, m);
+  s = "";  m = n;
+  while(m > 0, d = mod(m, 36);  s = substring(B36, d, d + 1) + s;  m = floor(m / 36));
+  while(length(s) < 6, s = "0" + s);
+  s
+);
+b36val(c) := (
+  regional(i, r);  r = 0;
+  forall(0..35, i, if(substring(B36, i, i + 1) == c, r = i));
+  r
+);
+fromB36(s) := (
+  regional(i, n);  n = 0;
+  forall(0..(length(s) - 1), i, n = n * 36 + b36val(substring(s, i, i + 1)));
+  n
+);
+
+encodeSituation() := (
+  regional(va, vb, N);
+  va = A.xy - O.xy;  vb = B.xy - O.xy;
+  N = ((clampU(va.x) * 200 + clampU(va.y)) * 200 + clampU(vb.x)) * 200 + clampU(vb.y);
+  toB36(N)
+);
+
+decodeSituation(s) := (
+  regional(N, u1, u2, u3, u4);
+  if(length(s) >= 1,
+    N  = fromB36(s);
+    u4 = mod(N, 200);  N = floor(N / 200);
+    u3 = mod(N, 200);  N = floor(N / 200);
+    u2 = mod(N, 200);  N = floor(N / 200);
+    u1 = mod(N, 200);
+    vecA = [(u1 - 99) / 10, (u2 - 99) / 10];
+    vecB = [(u3 - 99) / 10, (u4 - 99) / 10];
+    needsCenter = true;
   );
-  drawArrow(O, B, "b", vecSettingsL, colorVector);
-  if(|A - O| > 0.0001,
-    drawArrow(O, A, "a", vecSettingsR, colorVector);
-  );
+  1
 );
 
 // ----------------------------------------------------------------
@@ -963,28 +978,31 @@ drawVecsWithAngle() := (
 // ----------------------------------------------------------------
 O.xy  = [0, 0];
 
-slAngS    = [0, 0];
-slAngE    = [0, 0];
-
-B.color    = colorPoint;
-B.labelled = false;
-A.color    = colorPoint;
-A.size     = 10;
-A.labelled = false;
+A.color = colorPoint;  A.size = 10;  A.labelled = false;
+B.color = colorPoint;  B.size = 10;  B.labelled = false;
 
 editmode    = false;
 wasPortrait = false;
 
-btnRandL = 0; btnRandR = 0; btnRandT = 0; btnRandB = 0;
-bcL = 0; bcR = 0; bcB = 0; bcT = 0;   // show-calculation toggle bounds
-obL = 0; obR = 0; obB = 0; obT = 0;   // obtuse-angle toggle bounds
-showCalc        = false;   // explicit a·b computation hidden by default
-allowObtuse     = true;    // random mode: obtuse angles allowed by default
-obtuseReady     = false;   // …but the FIRST (startup) position is always acute
-mouseDownFlag   = false;   // tracked via csmousedown / csmouseup
-skipSnap        = false;
-pendingBxy      = [99999, 99999];
-pendingSlAngVal = -1;
+// Sidebar (vector controls) shown only in edit mode.
+allowObtuse   = true;    // obtuse angles allowed in random mode…
+obtuseReady   = false;   // …but the first (startup) position is acute
+mouseDownFlag = false;
+
+// Button-bounds globals (set each frame).
+btnRandL=0; btnRandR=0; btnRandB=0; btnRandT=0;   // "Zufällige Position" (edit)
+obL=0; obR=0; obB=0; obT=0;                        // "Stumpfe Winkel"    (edit)
+btnResetL=0; btnResetR=0; btnResetB=0; btnResetT=0; // "Geodreieck zurück" (edit)
+udL=0; udR=0; udB=0; udT=0;                        // "Linie zurück" (display, top-right)
+
+// Geodreieck state: long edge spans 2·gHalf units; peak height gPeak.
+gHalf = 7;  gPeak = 7;
+gP0   = [2, -1.5];  gAng0 = 0;       // default pose (used by "zurück")
+gP    = gP0;  gAng = gAng0;
+gMode = "none";  gOff = [0, 0];
+drawnLines = [];
+drawing = false;  curA = [0, 0];  curB = [0, 0];
+drawEP  = [0, 0];  drawED = [1, 0];
 
 randomStart();
 obtuseReady = true;   // from now on "Zufällige Position" may produce obtuse angles
@@ -1000,36 +1018,8 @@ playAnimation();
      =========================================================== -->
 <script id="csmove" type="text/x-cindyscript">
 
-// Pulse B in display mode; fixed size in edit mode.
-if(!editmode,
-  pulsePoint(B, 5, 3.2, 4);
-,
-  B.size = 5;
-);
-
-// The panel shows the components rounded to 2 decimals; the scalar
-// product is computed from EXACTLY those displayed values, so the readout
-// at the arrow tip and the explicit "Rechnung" agree to the last digit.
-rcAx = round(100 * A.x) / 100;   rcAy = round(100 * A.y) / 100;
-rcBx = round(100 * B.x) / 100;   rcBy = round(100 * B.y) / 100;
-roundedSkpAB = round(100 * (rcAx * rcBx + rcAy * rcBy)) / 100;
-// "=" only when nothing had to be rounded (e.g. b is exact), else "≈".
-skpExact = (|rcAx - A.x| < 0.0001) & (|rcAy - A.y| < 0.0001) &
-           (|rcBx - B.x| < 0.0001) & (|rcBy - B.y| < 0.0001);
-tSkp = "$\vec a \bullet \vec b " + if(skpExact, "=", "\approx") + " " + roundedSkpAB + "$";
-
-// Component displays via the framework helper.
-tVecA = texVec("a", [A.x, A.y]);
-tVecB = texVec("b", [B.x, B.y]);
-
-// Explicit a·b computation (shown when the "Rechnung" toggle is on, only
-// in display mode). Uses the SAME rounded components and SAME result as
-// the arrow-tip label, so both readouts always match exactly.
-tCalc = "$\vec a \bullet \vec b " + if(skpExact, "=", "\approx") + " "
-      + "\begin{pmatrix} " + rcAx + " \\ " + rcAy + " \end{pmatrix} \bullet "
-      + "\begin{pmatrix} " + rcBx + " \\ " + rcBy + " \end{pmatrix} = "
-      + rcAx + " \cdot " + fmtNeg(rcBx) + " + " + rcAy + " \cdot " + fmtNeg(rcBy)
-      + " = " + roundedSkpAB + "$";
+// Geodreieck drag (move / rotate / draw) is handled in csdraw via
+// geoUpdateDrag(); nothing per-frame needed here.
 
 </script>
 
@@ -1039,86 +1029,65 @@ tCalc = "$\vec a \bullet \vec b " + if(skpExact, "=", "\approx") + " "
      =========================================================== -->
 <script id="csdraw" type="text/x-cindyscript">
 
-// 1) Layout + anchors. sidebarVisible is auto-synced from editmode
-//    because sidebarFollowsEditmode is true (the default).
+// 1) Layout + anchors.
 platformBeginFrame();
 
-// 2) Couple geometry visibility to mode.
-B.pinned       = editmode;
-B.visible      = !editmode;
-A.visible      = editmode;
-slAngP.visible = editmode;
+// Re-centre the vector figure when flagged (after a random draw / startup,
+// or when the orientation changed) — anchors are now available.
+if((isPortrait != wasPortrait) & (!needsCenter),
+  vecA = A.xy - O.xy;  vecB = B.xy - O.xy;  needsCenter = true);
+if(needsCenter, centerFigure();  needsCenter = false);
 
-// 3) Status / hint messages.
+// 2) Vector arrows drawn in both modes; the A/B grab dots only show in
+//    edit mode (draggable there; hidden and pinned in display mode).
+A.visible = editmode;  B.visible = editmode;
+A.pinned  = !editmode;  B.pinned = !editmode;
+
+// 3) Status / hint.
 if(editmode,
   setStatus(
-    ["SITUATION BEARBEITEN: Du kannst jetzt",
-     "den Winkel $\alpha$ und den Endpunkt von $\vec{a}$ anpassen."],
+    ["SITUATION BEARBEITEN: Endpunkte von a und b ziehen",
+     "oder „Zufällige Position“ — danach im Anzeigemodus messen."],
     "alert");
 ,
   clearStatus();
 );
 
-// 4) Sidebar contents (slider) — only when the sidebar is visible.
+// 4) Sidebar (vector controls — edit mode only).
 if(sidebarVisible, drawSidebar());
 wasPortrait = isPortrait;
 
-// 5) Mathematics.
-adjustBRay();
-if(pendingBxy_1 < 99990,
-  B.xy       = pendingBxy;
-  pendingBxy = [99999, 99999];
-);
-drawVecsWithAngle();
-// Only keep B on screen while the user is actually dragging it. Running
-// this every frame would let a resize (which shrinks the visible area)
-// pull B inward and permanently change |b| — and with it the dot
-// product. Gating on mouseDownFlag keeps a·b independent of window size.
-if(mouseDownFlag, clampBToScreen());
-
-// 6) Math text overlays via drawLabel: backgrounds are measured from
-//    the rendered text so they fit exactly at any size, and each one's
-//    white box can be toggled off through the labelBg* flags above.
-fsSkp   = fontScale * if(isPortrait, 30, 24);
-fsComps = fontScale * if(isPortrait, 32, 30);
-ovPad   = 8;   // background padding around the labels, px
-
-// Scalar-product result, floating just to the right of B.
+// 5) Display mode: update + draw Geodreieck (below) and the drawn lines
+//    (on top), plus a single "Linie zurück" (undo) button top-right.
 if(!editmode,
-  drawLabel(B.x + 18 / screenresolution(), B.y, tSkp,
-            fsSkp, [0, 0, 0], "left", "mid", labelBgSkp, ovPad);
+  geoUpdateDrag();
+  drawGeodreieck();
+  drawDrawnLines();
+  udR = axContentRight;  udL = udR - 132 / screenresolution();
+  udT = axContentTop;    udB = udT - 34 / screenresolution();
+  fillpoly([[udL, udB], [udR, udB], [udR, udT], [udL, udT]], color -> petrol10);
+  drawtext([(udL + udR) / 2, (udB + udT) / 2], "Linie zurück",
+           align -> "center", size -> fontScale * 15, color -> petrol, yoffset -> -fontScale * 15 * 0.27);
 );
 
-// a / b component labels in the top-left corner.
-if(!isPortrait,
-  drawLabel(axContentLeft, axContentTop,
-    tVecA + if(!editmode, ",    " + tVecB, ""),
-    fsComps, colorVector, "left", "top", labelBgComps, ovPad);
-,
-  // Portrait: stack a above b, b's box just below a's.
-  regional(bottomA);
-  bottomA = drawLabel(axContentLeft, axContentTop, tVecA,
-                      fsComps, colorVector, "left", "top", labelBgComps, ovPad);
-  if(!editmode,
-    drawLabel(axContentLeft, bottomA - 6 / screenresolution(), tVecB,
-              fsComps, colorVector, "left", "top", labelBgComps, ovPad);
-  );
-);
-
-// Explicit a·b computation in a light box just above the footer (toggled
-// by the "Rechnung" switch in edit mode, shown only in display mode).
-// In ADDITION to the a·b readout at the vector tip, with the same value.
-if(showCalc & !editmode,
-  drawCenteredBox(tCalc, "Rechnung", fontScale * 22, fontScale * 18,
-                  petrol5, petrol, [0, 0, 0], petrol,
-                  axUnitBot);
-);
+// 6) The two vectors on top of the (translucent) Geodreieck.
+drawVecs();
 
 // 7) Chrome on top.
 drawTitle();
 drawCog();
 drawUnit();
 drawStatusOrCredits();
+
+// 8) Shareable situation code next to the title, sharing its baseline
+//    (bottom-aligned, a bit smaller). The leading "#" makes it copy-paste
+//    ready onto the URL (…#code) to reproduce this exact start.
+sitFs   = fontScale * if(isPortrait, fontTitleP, fontTitle);
+sitM    = pixelsize(appletTitle, size -> sitFs);
+sitBase = axTitleCy + (sitM_3 - sitM_2) / (2 * screenresolution());
+drawLabel(axTitleLeft + (sitM_1 + 22) / screenresolution(),
+          sitBase, "#" + encodeSituation(),
+          fontScale * 15, colorChrome, "left", "base", false, 5);
 
 </script>
 
@@ -1127,25 +1096,49 @@ drawStatusOrCredits();
      CSMOUSEDOWN — cog button toggles edit mode
      =========================================================== -->
 <script id="csmousedown" type="text/x-cindyscript">
-mouseDownFlag = true;   // consumed by drawSidebar for slider dragging
+mouseDownFlag = true;
+hitUndo = false;
 if(mouse().x > axCogLeft & mouse().x < axCogRight &
    mouse().y > axCogBot  & mouse().y < axCogTop,
   editmode = !editmode;
 );
-if(editmode &
-   mouse().x > btnRandL & mouse().x < btnRandR &
-   mouse().y > btnRandB & mouse().y < btnRandT,
-  randomStart();
+// Edit-mode buttons
+if(editmode & mouse().x > btnRandL & mouse().x < btnRandR &
+   mouse().y > btnRandB & mouse().y < btnRandT, randomStart());
+if(editmode & mouse().x > obL & mouse().x < obR &
+   mouse().y > obB & mouse().y < obT, allowObtuse = !allowObtuse);
+if(editmode & mouse().x > btnResetL & mouse().x < btnResetR &
+   mouse().y > btnResetB & mouse().y < btnResetT, gP = gP0; gAng = gAng0);
+// Display-mode: undo last drawn line (top-right button)
+if(!editmode & mouse().x > udL & mouse().x < udR &
+   mouse().y > udB & mouse().y < udT,
+  if(length(drawnLines) > 0, drawnLines = drawnLines_(1..(length(drawnLines) - 1)));
+  hitUndo = true;
 );
-if(editmode &
-   mouse().x > bcL & mouse().x < bcR &
-   mouse().y > bcB & mouse().y < bcT,
-  showCalc = !showCalc;
-);
-if(editmode &
-   mouse().x > obL & mouse().x < obR &
-   mouse().y > obB & mouse().y < obT,
-  allowObtuse = !allowObtuse;
+
+// Display-mode: grab the Geodreieck (rotate knob / draw on edge / move body)
+if(!editmode & !hitUndo,
+  regional(m, hp, V1, V2, V3, d0, d1, d2, dmin);
+  m = mouse();
+  V1 = geoPt(-gHalf, 0);  V2 = geoPt(gHalf, 0);  V3 = geoPt(0, gPeak);
+  hp = geoPt(0, gPeak - 1.2);
+  if(|m - hp| < 0.7,
+    gMode = "rotate";
+  ,
+    d0 = distToSeg(m, V1, V2);
+    d1 = distToSeg(m, V1, V3);
+    d2 = distToSeg(m, V2, V3);
+    dmin = min(d0, min(d1, d2));
+    if(dmin < 0.45,
+      gMode = "draw";
+      if(d0 <= d1 & d0 <= d2, drawEP = V1; drawED = (V2 - V1) / |V2 - V1|);
+      if(d1 <  d0 & d1 <= d2, drawEP = V1; drawED = (V3 - V1) / |V3 - V1|);
+      if(d2 <  d0 & d2 <  d1, drawEP = V2; drawED = (V3 - V2) / |V3 - V2|);
+      curA = projOntoLine(m, drawEP, drawED);  curB = curA;  drawing = true;
+    ,
+      if(pointInTri(m, V1, V2, V3), gMode = "move";  gOff = m - gP, gMode = "none");
+    );
+  );
 );
 </script>
 
@@ -1155,6 +1148,11 @@ if(editmode &
      =========================================================== -->
 <script id="csmouseup" type="text/x-cindyscript">
 mouseDownFlag = false;
+if(drawing,
+  if(|curB - curA| > 0.3, drawnLines = drawnLines ++ [[curA, curB]]);
+  drawing = false;
+);
+gMode = "none";
 </script>
 
 
@@ -1174,35 +1172,14 @@ var cdy = CindyJS({
     angleUnit: "°",
     geometry: [
         // Origin (pinned, invisible)
-        {name: "O", type: "Free", pos: [0.0, 0.0, 4.0],
+        {name: "O", type: "Free", pos: [0.0, 0.0, 1.0],
             color: [1.0, 0.0, 0.0], visible: false, pinned: true, labeled: true},
         // Tip of vector a (draggable in edit mode)
-        {name: "A", type: "Free", pos: [4.0, 0.8, 0.8],
-            dimDependent: 1, color: [0.714, 0.502, 0.573], visible: false},
-        // Unit vector in direction of a (internal, invisible)
-        {name: "A0", type: "Free", pos: [3.92232270276368, 0.7844645405527362, 4.0],
-            color: [1.0, 0.0, 0.0], visible: false, labeled: true},
-        // Unit vector in direction of b (internal, invisible)
-        {name: "B0", type: "Free", pos: [2.218800784900914, 3.328201177351376, 4.0],
-            color: [1.0, 0.0, 0.0], visible: false, labeled: true},
-        // Extended endpoint of the b ray (used by adjustBRay)
-        {name: "C", type: "Free", pos: [-2.666666666666662, -4.0, -0.26088765645889556],
-            color: [1.0, 0.0, 0.0], labeled: true},
-        // Ray from O to C (glide path for B, invisible)
-        {name: "bRay", type: "Segment", dimDependent: 1,
-            color: [0.643, 0.255, 0.408], args: ["O", "C"],
-            visible: false, labeled: true, size: 3},
-        // Tip of vector b (lies on bRay, draggable by user)
-        {name: "B", type: "PointOnSegment", pos: [-2.6666666666666616, -4.0, -1.1176160751290611],
-            dimDependent: 1, color: [0.643, 0.255, 0.408],
-            args: ["bRay"], size: 7.015983213640668},
-        // Slider point for α (only visible in edit mode).
-        // labeled:false → the α label is drawn manually by drawSidebar
-        // so it can be centered above the point in portrait.
-        {name: "slAngP", type: "Free", pos: [4.0, 0.338425786526072, 0.4411103290562929],
-            dimDependent: 1, color: [0.973, 0.706, 0.31], visible: false,
-            labeled: false, textsize: 24.0, size: 10.0, border: false,
-            printname: "$\\alpha$"}
+        {name: "A", type: "Free", pos: [4.0, 2.0, 1.0],
+            dimDependent: 1, color: [0.643, 0.255, 0.408], size: 10.0},
+        // Tip of vector b (draggable in edit mode)
+        {name: "B", type: "Free", pos: [-1.0, 3.0, 1.0],
+            dimDependent: 1, color: [0.643, 0.255, 0.408], size: 10.0}
     ],
     ports: [{
         id: "CSCanvas",
@@ -1215,6 +1192,29 @@ var cdy = CindyJS({
     use: ["katex"],
     cinderella: {build: 2124, version: [3, 0, 2124]}
 });
+
+// ===========================================================
+// Permalink: a situation code in the URL hash (…#ax_ay_bx_by) is
+// loaded once the CindyScript interpreter is ready. The hash is
+// sanitised to digits / "_" / "-" so it can't inject script.
+// ===========================================================
+(function () {
+    var done = false, tries = 0;
+    function apply() {
+        if (done) return;
+        var h = (location.hash || "").replace(/^#/, "").replace(/[^0-9A-Za-z]/g, "").toUpperCase();
+        if (!h) { done = true; return; }              // nothing to load
+        try {
+            var r = cdy.evalcs('decodeSituation("' + h + '")');
+            if (r && r.value && r.value.real === 1) { done = true; return; }
+        } catch (e) { /* interpreter not ready yet */ }
+        if (tries++ < 120) setTimeout(apply, 100);
+    }
+    setTimeout(apply, 150);
+    // Pasting a new #code into the address bar changes the hash without a
+    // full reload — apply it live too.
+    window.addEventListener("hashchange", function () { done = false; tries = 0; apply(); });
+})();
 
 // ===========================================================
 // Responsive viewport: keep the grid-cell size identical in
