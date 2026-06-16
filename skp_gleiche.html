@@ -897,10 +897,10 @@ drawSidebar() := (
     );
     // Stamp + manage stamps (once d is shown).
     if(visVecD,
-      labels  = labels  ++ ["Abdruck"];  actions = actions ++ ["stamp"];
+      labels  = labels  ++ [L("Abdruck", "Stamp")];  actions = actions ++ ["stamp"];
       fills   = fills   ++ [petrol10];   txts    = txts    ++ [petrol];  sizes = sizes ++ [15];
       if(stamps != [],
-        labels  = labels  ++ ["Rückgängig", "Alles löschen"];
+        labels  = labels  ++ [L("Rückgängig", "Undo"), L("Alles löschen", "Clear all")];
         actions = actions ++ ["undo",       "clear"];
         fills   = fills   ++ [petrol10,     wineRed10];
         txts    = txts    ++ [petrol,       wineRed];
@@ -1032,6 +1032,26 @@ mouseDownFlag = false;   // tracked via csmousedown / csmouseup
 draggingPt    = 0;       // 0 = none, 1 = dragging A, 2 = dragging B
 hitUI         = false;
 
+// ---- Bilingual UI (DE/EN) -------------------------------------
+// lang is set at load from the URL hash (#en) by JS and toggled in-applet
+// by the EN/DE chip (drawLangToggle, left of the cog). L() returns the
+// matching variant for any bilingual string.
+lang  = "de";
+L(de, en) := if(lang == "en", en, de);
+langL = 0;  langR = 0;  langB = 0;  langT = 0;
+
+drawLangToggle() := (
+  regional(sr, w, h, rr, ll, tt, bb);
+  sr = screenresolution();
+  w  = 38 / sr;  h = 26 / sr;
+  rr = axCogLeft - 12 / sr;  ll = rr - w;          // sit just left of the cog
+  tt = axCogCy + h / 2;      bb = axCogCy - h / 2;
+  langL = ll;  langR = rr;  langB = bb;  langT = tt;
+  fillpoly([[ll, bb], [rr, bb], [rr, tt], [ll, tt]], color -> [0.90, 0.90, 0.90]);
+  drawtext([(ll + rr) / 2, (bb + tt) / 2], if(lang == "en", "DE", "EN"),
+           align -> "center", size -> fontScale * 14, color -> colorChrome, yoffset -> -fontScale * 14 * 0.27);
+);
+
 lastRandA = [0, 0];   // exact ints of the last random a / b (for the
 lastRandB = [0, 0];   // "both must change" check in randomStart)
 randomStart();
@@ -1084,6 +1104,11 @@ tVecB = texVec("b", [B.x, B.y]);
      =========================================================== -->
 <script id="csdraw" type="text/x-cindyscript">
 
+// Localised title + credits (drawn by the chrome below); react live to #en.
+appletTitle        = L("Gleiche Skalarprodukte", "Equal Scalar Products");
+appletAffiliations = L("QuaMath (DZLM + IPN, gef. v. KMK) | LiAnMU | Universität Paderborn",
+                       "QuaMath (DZLM + IPN, funded by KMK) | LiAnMU | Paderborn University");
+
 // 1) Layout + anchors. The sidebar is always visible (set in csinit,
 //    sidebarFollowsEditmode = false), so platformBeginFrame leaves
 //    sidebarVisible = true.
@@ -1129,21 +1154,28 @@ isEqD = visVecD & |skpWithA(D) - skpAB| < eqTol;
 targetVal = round(100 * skpAB) / 100;
 if(editmode,
   setStatus(
-    ["SITUATION BEARBEITEN: Ziehe die Spitzen von $\vec a$ und $\vec b$.",
-     "Ihr Skalarprodukt $\vec a \bullet \vec b$ ist der Zielwert."],
+    L(["SITUATION BEARBEITEN: Ziehe die Spitzen von $\vec a$ und $\vec b$.",
+       "Ihr Skalarprodukt $\vec a \bullet \vec b$ ist der Zielwert."],
+      ["EDIT THE SITUATION: drag the tips of $\vec a$ and $\vec b$.",
+       "Their scalar product $\vec a \bullet \vec b$ is the target value."]),
     "alert");
 ,
   if(!visVecC,
-    setWork(["Gibt es weitere Vektoren, die mit $\vec a$ das Skalarprodukt " + targetVal + " haben?"]);
+    setWork(L(["Gibt es weitere Vektoren, die mit $\vec a$ das Skalarprodukt " + targetVal + " haben?"],
+              ["Are there other vectors whose scalar product with $\vec a$ is " + targetVal + "?"]));
   , if(!visVecD,
     if(isEqC,
-      setWork(["Findest du noch einen weiteren Vektor $\vec d$?"]);
+      setWork(L(["Findest du noch einen weiteren Vektor $\vec d$?"],
+                ["Can you find yet another vector $\vec d$?"]));
     ,
-      setWork(["Verändere $\vec c$, bis $\vec a \bullet \vec c = \vec a \bullet \vec b$ gilt."]);
+      setWork(L(["Verändere $\vec c$, bis $\vec a \bullet \vec c = \vec a \bullet \vec b$ gilt."],
+                ["Adjust $\vec c$ until $\vec a \bullet \vec c = \vec a \bullet \vec b$."]));
     );
   ,
-    setWork(["Du kannst nun Abdrücke des Vektors $\vec d$ setzen.",
-             "Drücke dazu den Schalter „Abdruck“ oder die Leertaste."]);
+    setWork(L(["Du kannst nun Abdrücke des Vektors $\vec d$ setzen.",
+               "Drücke dazu den Schalter „Abdruck“ oder die Leertaste."],
+              ["You can now place stamps of the vector $\vec d$.",
+               "Use the “Stamp” button or the space bar."]));
   ));
 );
 
@@ -1195,6 +1227,7 @@ if(visVecD & !editmode,
 //    (stacked) — see drawFooterCombined.
 drawTitle();
 drawCog();
+drawLangToggle();
 drawUnit();
 drawFooterCombined();
 
@@ -1214,6 +1247,11 @@ hitUI = false;   // was a chrome element (cog / a button) pressed this click?
 if(mouse().x > axCogLeft & mouse().x < axCogRight &
    mouse().y > axCogBot  & mouse().y < axCogTop,
   editmode = !editmode;  hitUI = true;
+);
+// Language toggle (left of the cog) — flip between German and English.
+if(mouse().x > langL & mouse().x < langR &
+   mouse().y > langB & mouse().y < langT,
+  lang = if(lang == "en", "de", "en");  hitUI = true;
 );
 // Sidebar buttons: dispatch the click against the bounds drawSidebar
 // recorded this frame in btList = [[L, R, B, T, action], …].
@@ -1297,6 +1335,27 @@ var cdy = CindyJS({
     use: ["katex"],
     cinderella: {build: 2124, version: [3, 0, 2124]}
 });
+
+// ===========================================================
+// UI language from the URL hash (#en / #de). Whitelisted to [0-9A-Za-z],
+// so it can't inject script. The in-applet EN/DE toggle switches it too.
+// ===========================================================
+function appReadHash() {
+    var segs = (location.hash || "").replace(/^#/, "").split(/[^0-9A-Za-z]+/);
+    var lang = "de", i, s;
+    for (i = 0; i < segs.length; i++) { s = segs[i]; if (/^(de|en)$/i.test(s)) lang = s.toLowerCase(); }
+    return { lang: lang };
+}
+(function () {
+    var done = false, tries = 0;
+    function apply() {
+        try { cdy.evalcs('lang="' + (appReadHash().lang === "en" ? "en" : "de") + '"'); done = true; }
+        catch (e) { /* interpreter not ready yet */ }
+        if (!done && tries++ < 120) setTimeout(apply, 100);
+    }
+    setTimeout(apply, 150);
+    window.addEventListener("hashchange", function () { done = false; tries = 0; apply(); });
+})();
 
 // ===========================================================
 // Responsive viewport: keep the grid-cell size identical in

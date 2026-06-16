@@ -7,23 +7,22 @@
 <meta name="description" content="Interaktive Applets zum Skalarprodukt – Winkel, Beträge, gleiche Skalarprodukte und cleveres Messen mit dem Geodreieck. Direkt im Browser auf Computer, Tablet und Smartphone. Entwickelt in den Projekten LiAnMU und QuaMath.">
 <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
 
-<!-- Social-/Link-Vorschau (Open Graph + Twitter).
-     Hinweis: Für volle Kompatibilität (Facebook, LinkedIn, WhatsApp …) die
-     relativen Bild-/URL-Pfade durch die ABSOLUTE Pages-Adresse ersetzen,
-     z. B. https://<dein-user>.github.io/<repo>/assets/og-image.png -->
+<!-- Social-/Link-Vorschau (Open Graph + Twitter). Absolute URLs für volle
+     Kompatibilität (Facebook, LinkedIn, WhatsApp …). -->
 <meta property="og:type" content="website">
 <meta property="og:locale" content="de_DE">
+<meta property="og:url" content="https://maxthematics.github.io/lianmu_apps/">
 <meta property="og:site_name" content="Skalarprodukt – interaktive Applets">
 <meta property="og:title" content="Skalarprodukt – interaktive Applets">
 <meta property="og:description" content="Winkel, Beträge, gleiche Skalarprodukte und Messen mit dem Geodreieck – interaktiv im Browser auf jedem Gerät erkunden.">
-<meta property="og:image" content="assets/og-image.png">
+<meta property="og:image" content="https://maxthematics.github.io/lianmu_apps/assets/og-image.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="Skalarprodukt – interaktive Applets (Vektordiagramm mit Winkel)">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Skalarprodukt – interaktive Applets">
 <meta name="twitter:description" content="Winkel, Beträge, gleiche Skalarprodukte und Messen mit dem Geodreieck – interaktiv im Browser auf jedem Gerät erkunden.">
-<meta name="twitter:image" content="assets/og-image.png">
+<meta name="twitter:image" content="https://maxthematics.github.io/lianmu_apps/assets/og-image.png">
 <style>
   :root{
     --petrol:#327a86;
@@ -124,6 +123,15 @@
   footer .logo-lian{height:38px}
   footer .proj{margin-top:.15rem}
 
+  /* Language toggle (DE/EN) — neutral grey chip, fixed top-right */
+  .lang-toggle{
+    position:fixed; top:14px; right:14px; z-index:10;
+    font:600 13px/1 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:#5b6569; background:#ececec; border:1px solid #d7dcde; border-radius:8px;
+    padding:7px 11px; cursor:pointer
+  }
+  .lang-toggle:hover{ background:#e2e7e9; border-color:#c9d3d6 }
+
   /* respect users who prefer reduced motion: no hover lift / slide */
   @media (prefers-reduced-motion: reduce){
     *{transition:none !important;scroll-behavior:auto !important}
@@ -132,6 +140,8 @@
 </style>
 </head>
 <body>
+<button class="lang-toggle" id="langToggle" type="button" aria-label="Sprache wechseln / switch language">EN</button>
+
 <!-- shared SVG defs: grid pattern + arrowheads -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <defs>
@@ -149,16 +159,16 @@
 
 <div class="wrap">
   <header>
-    <p class="kicker">Lineare Algebra | Analytische Geometrie</p>
-    <h1>Skalarprodukt – interaktive Applets</h1>
-    <p class="lede">
+    <p class="kicker" data-i18n="kicker">Lineare Algebra | Analytische Geometrie</p>
+    <h1 data-i18n="h1">Skalarprodukt – interaktive Applets</h1>
+    <p class="lede" data-i18n="lede">
       Die folgenden Applets zum Skalarprodukt sind in den Projekten
       <strong>LiAnMU</strong> und <strong>QuaMath</strong> von
       Max Hoffmann, Janine Herrmann, Olga Lomas und Lena Wessel entstanden.
       Sie laufen direkt im Browser – auf Computer, Tablet und Smartphone – und
       passen sich automatisch jeder Bildschirmgröße an.
     </p>
-    <p class="feedback">
+    <p class="feedback" data-i18n="feedback">
       Über Rückmeldungen zu den Applets freuen wir uns sehr – per Mail an
       <a href="mailto:max.hoffmann@math.uni-paderborn.de">max.hoffmann@math.uni-paderborn.de</a>.
     </p>
@@ -185,9 +195,9 @@
         <circle cx="158" cy="38" r="6" fill="#a44168"/>
       </svg>
       <div class="body">
-        <h2>Skalarprodukt und Winkel</h2>
-        <p>Wie verändert sich das Skalarprodukt, wenn man den Winkel zwischen den Vektoren variiert?</p>
-        <span class="open">Öffnen <span class="arr">→</span></span>
+        <h2 data-i18n="c1h">Skalarprodukt und Winkel</h2>
+        <p data-i18n="c1p">Wie verändert sich das Skalarprodukt, wenn man den Winkel zwischen den Vektoren variiert?</p>
+        <span class="open" data-i18n="open">Öffnen <span class="arr">→</span></span>
       </div>
     </a>
 
@@ -210,9 +220,9 @@
         <circle cx="176" cy="52" r="6" fill="#a44168"/>
       </svg>
       <div class="body">
-        <h2>Skalarprodukt und Beträge</h2>
-        <p>Wie verändert sich das Skalarprodukt, wenn man den Betrag eines Vektors variiert?</p>
-        <span class="open">Öffnen <span class="arr">→</span></span>
+        <h2 data-i18n="c2h">Skalarprodukt und Beträge</h2>
+        <p data-i18n="c2p">Wie verändert sich das Skalarprodukt, wenn man den Betrag eines Vektors variiert?</p>
+        <span class="open" data-i18n="open">Öffnen <span class="arr">→</span></span>
       </div>
     </a>
 
@@ -234,9 +244,9 @@
         <circle cx="172" cy="50" r="6" fill="#a44168"/>
       </svg>
       <div class="body">
-        <h2>Gleiche Skalarprodukte</h2>
-        <p>Welche anderen Vektoren haben mit <em>a</em> dasselbe Skalarprodukt wie <em>b</em>?</p>
-        <span class="open">Öffnen <span class="arr">→</span></span>
+        <h2 data-i18n="c3h">Gleiche Skalarprodukte</h2>
+        <p data-i18n="c3p">Welche anderen Vektoren haben mit <em>a</em> dasselbe Skalarprodukt wie <em>b</em>?</p>
+        <span class="open" data-i18n="open">Öffnen <span class="arr">→</span></span>
       </div>
     </a>
 
@@ -276,9 +286,9 @@
         </g>
       </svg>
       <div class="body">
-        <h2>Skalarprodukt clever messen</h2>
-        <p>Wie lässt sich das Skalarprodukt geschickt mit dem Geodreieck messen?</p>
-        <span class="open">Öffnen <span class="arr">→</span></span>
+        <h2 data-i18n="c4h">Skalarprodukt clever messen</h2>
+        <p data-i18n="c4p">Wie lässt sich das Skalarprodukt geschickt mit dem Geodreieck messen?</p>
+        <span class="open" data-i18n="open">Öffnen <span class="arr">→</span></span>
       </div>
     </a>
 
@@ -301,7 +311,7 @@
       </span>
     </div>
     <div class="names">Max Hoffmann, Janine Herrmann, Olga Lomas &amp; Lena Wessel</div>
-    <div class="proj">
+    <div class="proj" data-i18n="proj">
       Entwickelt in den Projekten <strong>LiAnMU</strong> – Lineare Algebra und
       Analytische Geometrie im Mathematikunterricht – und <strong>QuaMath</strong> –
       Unterrichts- und Fortbildungs-Qualität in Mathematik entwickeln
@@ -309,12 +319,79 @@
       Pädagogik der Naturwissenschaften und Mathematik, gefördert von der
       Kultusministerkonferenz) · Universität Paderborn
     </div>
-    <div class="meta">
+    <div class="meta" data-i18n="meta">
       <a href="mailto:max.hoffmann@math.uni-paderborn.de">max.hoffmann@math.uni-paderborn.de</a>
       · MIT License
       · entwickelt mit <a href="https://cindyjs.org" target="_blank" rel="noopener">CindyJS</a>
     </div>
   </footer>
 </div>
+
+<!-- ===========================================================
+     Bilingual UI (DE/EN). Language from the URL hash (#en / #de) and the
+     grey toggle; the applet links carry the language onward (…#en), so a
+     visitor who arrives in English keeps the English applets.
+     =========================================================== -->
+<script>
+(function () {
+  var EN = {
+    kicker: "Linear Algebra | Analytic Geometry",
+    h1:     "The Scalar Product – Interactive Applets",
+    lede:   "The applets below on the scalar product were created in the " +
+            "<strong>LiAnMU</strong> and <strong>QuaMath</strong> projects by " +
+            "Max Hoffmann, Janine Herrmann, Olga Lomas and Lena Wessel. They run " +
+            "directly in the browser – on computer, tablet and smartphone – and " +
+            "adapt automatically to any screen size.",
+    feedback: 'We very much welcome your feedback on the applets – by email to ' +
+              '<a href="mailto:max.hoffmann@math.uni-paderborn.de">max.hoffmann@math.uni-paderborn.de</a>.',
+    c1h: "Scalar Product and Angle",
+    c1p: "How does the scalar product change when you vary the angle between the vectors?",
+    c2h: "Scalar Product and Magnitudes",
+    c2p: "How does the scalar product change when you vary the magnitude of a vector?",
+    c3h: "Equal Scalar Products",
+    c3p: "Which other vectors have the same scalar product with <em>a</em> as <em>b</em>?",
+    c4h: "The Scalar Product — Measuring Cleverly",
+    c4p: "How can you measure the scalar product cleverly with a set square?",
+    open: 'Open <span class="arr">→</span>',
+    proj: "Developed in the <strong>LiAnMU</strong> project – Linear Algebra and " +
+          "Analytic Geometry in Mathematics Teaching – and <strong>QuaMath</strong> – " +
+          "developing the quality of teaching and professional development in mathematics " +
+          "(German Centre for Mathematics Teacher Education and Leibniz Institute for Science " +
+          "and Mathematics Education, funded by the Standing Conference of the Ministers of " +
+          "Education) · Paderborn University",
+    meta: '<a href="mailto:max.hoffmann@math.uni-paderborn.de">max.hoffmann@math.uni-paderborn.de</a>' +
+          ' · MIT License · built with <a href="https://cindyjs.org" target="_blank" rel="noopener">CindyJS</a>'
+  };
+
+  var nodes = document.querySelectorAll("[data-i18n]");
+  nodes.forEach(function (el) { el._de = el.innerHTML; });   // keep the German original
+
+  function readLang() {
+    var segs = (location.hash || "").replace(/^#/, "").split(/[^0-9A-Za-z]+/);
+    for (var i = 0; i < segs.length; i++) if (/^en$/i.test(segs[i])) return "en";
+    return "de";
+  }
+
+  function apply(lang) {
+    nodes.forEach(function (el) {
+      var k = el.getAttribute("data-i18n");
+      el.innerHTML = (lang === "en" && EN[k]) ? EN[k] : el._de;
+    });
+    document.documentElement.lang = lang;
+    document.getElementById("langToggle").textContent = (lang === "en") ? "DE" : "EN";
+    // Carry the language onward to the applets (…#en) so the visitor stays in it.
+    document.querySelectorAll("a.card").forEach(function (a) {
+      var base = a.getAttribute("href").split("#")[0];
+      a.setAttribute("href", lang === "en" ? base + "#en" : base);
+    });
+  }
+
+  apply(readLang());
+  document.getElementById("langToggle").addEventListener("click", function () {
+    location.hash = (readLang() === "en") ? "de" : "en";
+  });
+  window.addEventListener("hashchange", function () { apply(readLang()); });
+})();
+</script>
 </body>
 </html>

@@ -740,6 +740,26 @@ labelBgVec = true;
 editmode    = false;
 wasPortrait = false;
 
+// ---- Bilingual UI (DE/EN) -------------------------------------
+// lang is set at load from the URL hash (#en) by JS and toggled in-applet
+// by the EN/DE chip (drawLangToggle, left of the cog). L() returns the
+// matching variant for any bilingual string — wrap every UI string in it.
+lang  = "de";
+L(de, en) := if(lang == "en", en, de);
+langL = 0;  langR = 0;  langB = 0;  langT = 0;
+
+drawLangToggle() := (
+  regional(sr, w, h, rr, ll, tt, bb);
+  sr = screenresolution();
+  w  = 38 / sr;  h = 26 / sr;
+  rr = axCogLeft - 12 / sr;  ll = rr - w;          // sit just left of the cog
+  tt = axCogCy + h / 2;      bb = axCogCy - h / 2;
+  langL = ll;  langR = rr;  langB = bb;  langT = tt;
+  fillpoly([[ll, bb], [rr, bb], [rr, tt], [ll, tt]], color -> [0.90, 0.90, 0.90]);
+  drawtext([(ll + rr) / 2, (bb + tt) / 2], if(lang == "en", "DE", "EN"),
+           align -> "center", size -> fontScale * 14, color -> colorChrome, yoffset -> -fontScale * 14 * 0.27);
+);
+
 // Example sidebar layout. Local pixel coords: (0,0) at bottom-left
 // of the sidebar; use sbWidthPx() / sbHeightPx() for relative sizes.
 // Remove or replace with your own controls.
@@ -779,13 +799,21 @@ tVecP = texVec("p", [P.x, P.y]);
      =========================================================== -->
 <script id="csdraw" type="text/x-cindyscript">
 
+// Localised title + credits (drawn by the chrome below). Provide both the
+// German and English variant via L("…de…", "…en…"); they switch with the
+// URL hash (#en) and the in-applet EN/DE toggle.
+appletTitle        = L("Applet-Titel", "Applet Title");
+appletAffiliations = L("QuaMath (DZLM + IPN, gef. v. KMK) | LiAnMU | Universität Paderborn",
+                       "QuaMath (DZLM + IPN, funded by KMK) | LiAnMU | Paderborn University");
+
 // 1) Layout + anchors. sidebarVisible is auto-synced from editmode
 //    because sidebarFollowsEditmode is true (the default).
 platformBeginFrame();
 
 // 2) Status messages (edit-mode hint as an example).
 if(editmode,
-  setStatus(["BEARBEITEN: Erkläre hier, was gerade einstellbar ist."], "alert");
+  setStatus(L(["BEARBEITEN: Erkläre hier, was gerade einstellbar ist."],
+              ["EDITING: explain here what can currently be adjusted."]), "alert");
 ,
   clearStatus();
 );
@@ -808,6 +836,7 @@ drawArrow([0, 0], P.xy, "p", vecSettingsL, colorVector);
 // 5) Chrome on top.
 drawTitle();
 drawCog();
+drawLangToggle();
 drawUnit();
 drawStatusOrCredits();
 
@@ -822,6 +851,11 @@ mouseDownFlag = true;   // framework mouse-button state (see csinit)
 if(mouse().x > axCogLeft & mouse().x < axCogRight &
    mouse().y > axCogBot  & mouse().y < axCogTop,
   editmode = !editmode;
+);
+// Language toggle (left of the cog) — flip between German and English.
+if(mouse().x > langL & mouse().x < langR &
+   mouse().y > langB & mouse().y < langT,
+  lang = if(lang == "en", "de", "en");
 );
 </script>
 
@@ -865,6 +899,27 @@ var cdy = CindyJS({
     use: ["katex"],
     cinderella: {build: 2124, version: [3, 0, 2124]}
 });
+
+// ===========================================================
+// UI language from the URL hash (#en / #de). Whitelisted to [0-9A-Za-z],
+// so it can't inject script. The in-applet EN/DE toggle switches it too.
+// ===========================================================
+function appReadHash() {
+    var segs = (location.hash || "").replace(/^#/, "").split(/[^0-9A-Za-z]+/);
+    var lang = "de", i, s;
+    for (i = 0; i < segs.length; i++) { s = segs[i]; if (/^(de|en)$/i.test(s)) lang = s.toLowerCase(); }
+    return { lang: lang };
+}
+(function () {
+    var done = false, tries = 0;
+    function apply() {
+        try { cdy.evalcs('lang="' + (appReadHash().lang === "en" ? "en" : "de") + '"'); done = true; }
+        catch (e) { /* interpreter not ready yet */ }
+        if (!done && tries++ < 120) setTimeout(apply, 100);
+    }
+    setTimeout(apply, 150);
+    window.addEventListener("hashchange", function () { done = false; tries = 0; apply(); });
+})();
 
 // ===========================================================
 // Responsive viewport: keep the grid-cell size identical in

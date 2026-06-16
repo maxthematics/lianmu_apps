@@ -882,18 +882,34 @@ drawSidebar() := (
 
   btnRandL = bL; btnRandR = bR; btnRandB = y0; btnRandT = y1;
   fillpoly([[bL, y0], [bR, y0], [bR, y1], [bL, y1]], color -> petrol10);
-  drawtext([(bL + bR) / 2, (y0 + y1) / 2], "Zufällige Position",
+  drawtext([(bL + bR) / 2, (y0 + y1) / 2], L("Zufällige Position", "Random position"),
            align -> "center", size -> fontScale * 16, color -> petrol, yoffset -> -fontScale * 16 * 0.27);
 
   obL = bL; obR = bR; obB = y2; obT = y3;
   fillpoly([[bL, y2], [bR, y2], [bR, y3], [bL, y3]], color -> if(allowObtuse, petrol25, petrol10));
-  drawtext([(bL + bR) / 2, (y2 + y3) / 2], "Stumpfe Winkel: " + if(allowObtuse, "an", "aus"),
+  drawtext([(bL + bR) / 2, (y2 + y3) / 2],
+           L("Stumpfe Winkel: ", "Obtuse angles: ") + if(allowObtuse, L("an", "on"), L("aus", "off")),
            align -> "center", size -> fontScale * 15, color -> petrol, yoffset -> -fontScale * 15 * 0.27);
 
   btnResetL = bL; btnResetR = bR; btnResetB = y4; btnResetT = y5;
   fillpoly([[bL, y4], [bR, y4], [bR, y5], [bL, y5]], color -> petrol10);
-  drawtext([(bL + bR) / 2, (y4 + y5) / 2], "Geodreieck zurück",
+  drawtext([(bL + bR) / 2, (y4 + y5) / 2], L("Geodreieck zurück", "Reset set square"),
            align -> "center", size -> fontScale * 15, color -> petrol, yoffset -> -fontScale * 15 * 0.27);
+);
+
+// Language toggle (EN/DE): a small chip left of the cog, showing the
+// language you'd switch TO. A click is an interaction → CindyJS redraws,
+// so every CindyScript-drawn label updates immediately.
+drawLangToggle() := (
+  regional(sr, w, h, rr, ll, tt, bb);
+  sr = screenresolution();
+  w  = 38 / sr;  h = 26 / sr;
+  rr = axCogLeft - 12 / sr;  ll = rr - w;          // sit just left of the cog
+  tt = axCogCy + h / 2;      bb = axCogCy - h / 2;
+  langL = ll;  langR = rr;  langB = bb;  langT = tt;
+  fillpoly([[ll, bb], [rr, bb], [rr, tt], [ll, tt]], color -> [0.90, 0.90, 0.90]);
+  drawtext([(ll + rr) / 2, (bb + tt) / 2], if(lang == "en", "DE", "EN"),
+           align -> "center", size -> fontScale * 14, color -> colorChrome, yoffset -> -fontScale * 14 * 0.27);
 );
 
 // ----------------------------------------------------------------
@@ -1013,6 +1029,10 @@ B.color = colorPoint;  B.size = 10;  B.labelled = false;
 
 editmode    = false;
 wasPortrait = false;
+lang        = "de";   // UI language "de"/"en"; set from the URL hash (#en) by JS
+
+// Bilingual UI helper — returns the German or the English variant.
+L(de, en) := if(lang == "en", en, de);
 
 // Sidebar (vector controls) shown only in edit mode.
 allowObtuse   = true;    // obtuse angles allowed in random mode…
@@ -1024,6 +1044,7 @@ btnRandL=0; btnRandR=0; btnRandB=0; btnRandT=0;   // "Zufällige Position" (edit
 obL=0; obR=0; obB=0; obT=0;                        // "Stumpfe Winkel"    (edit)
 btnResetL=0; btnResetR=0; btnResetB=0; btnResetT=0; // "Geodreieck zurück" (edit)
 udL=0; udR=0; udB=0; udT=0;                        // "Linie zurück" (display, top-right)
+langL=0; langR=0; langB=0; langT=0;                // EN/DE language toggle (left of the cog)
 
 // Geodreieck state: long edge spans 2·gHalf units; peak height gPeak.
 gHalf = 7;  gPeak = 7;
@@ -1064,6 +1085,11 @@ playAnimation();
 // with the Geodreieck; in edit mode keep it grey as a placement aid.
 gridColor = if(editmode, [0.80, 0.81, 0.81], [1, 1, 1]);
 
+// Localised title + credits (drawn by the chrome below); react live to #en.
+appletTitle        = L("Das Skalarprodukt „clever messen“", "The Scalar Product — Measuring Cleverly");
+appletAffiliations = L("QuaMath (DZLM + IPN, gef. v. KMK) | LiAnMU | Universität Paderborn",
+                       "QuaMath (DZLM + IPN, funded by KMK) | LiAnMU | Paderborn University");
+
 // 1) Layout + anchors.
 platformBeginFrame();
 
@@ -1081,8 +1107,10 @@ A.pinned  = !editmode;  B.pinned = !editmode;
 // 3) Status / hint.
 if(editmode,
   setStatus(
-    ["SITUATION BEARBEITEN: Endpunkte von a und b ziehen",
-     "oder „Zufällige Position“ — danach im Anzeigemodus messen."],
+    L(["SITUATION BEARBEITEN: Endpunkte von a und b ziehen",
+       "oder „Zufällige Position“ — danach im Anzeigemodus messen."],
+      ["EDIT THE SITUATION: drag the tips of a and b,",
+       "or use “Random position” — then measure in display mode."]),
     "alert");
 ,
   clearStatus();
@@ -1101,7 +1129,7 @@ if(!editmode,
   udR = axContentRight;  udL = udR - 132 / screenresolution();
   udT = axContentTop;    udB = udT - 34 / screenresolution();
   fillpoly([[udL, udB], [udR, udB], [udR, udT], [udL, udT]], color -> petrol10);
-  drawtext([(udL + udR) / 2, (udB + udT) / 2], "Linie zurück",
+  drawtext([(udL + udR) / 2, (udB + udT) / 2], L("Linie zurück", "Undo line"),
            align -> "center", size -> fontScale * 15, color -> petrol, yoffset -> -fontScale * 15 * 0.27);
 );
 
@@ -1111,6 +1139,7 @@ drawVecs();
 // 7) Chrome on top.
 drawTitle();
 drawCog();
+drawLangToggle();
 drawUnit();
 drawStatusOrCredits();
 
@@ -1136,6 +1165,11 @@ hitUndo = false;
 if(mouse().x > axCogLeft & mouse().x < axCogRight &
    mouse().y > axCogBot  & mouse().y < axCogTop,
   editmode = !editmode;
+);
+// Language toggle (left of the cog) — flip between German and English.
+if(mouse().x > langL & mouse().x < langR &
+   mouse().y > langB & mouse().y < langT,
+  lang = if(lang == "en", "de", "en");
 );
 // Edit-mode buttons
 if(editmode & mouse().x > btnRandL & mouse().x < btnRandR &
@@ -1229,26 +1263,44 @@ var cdy = CindyJS({
 });
 
 // ===========================================================
-// Permalink: a situation code in the URL hash (…#ax_ay_bx_by) is
-// loaded once the CindyScript interpreter is ready. The hash is
-// sanitised to digits / "_" / "-" so it can't inject script.
+// URL hash → language + situation code, e.g.  #en  ·  #IGNZCP  ·  #en-IGNZCP
+// Segments are split on any non-alphanumeric char (order doesn't matter):
+// "de"/"en" set the language, a longer token is the Base36 situation code.
+// Everything is whitelisted to [0-9A-Za-z], so the hash can't inject script.
 // ===========================================================
+function appReadHash() {
+    var segs = (location.hash || "").replace(/^#/, "").split(/[^0-9A-Za-z]+/);
+    var lang = "de", code = null, i, s;
+    for (i = 0; i < segs.length; i++) {
+        s = segs[i];
+        if (!s) continue;
+        if (/^(de|en)$/i.test(s)) lang = s.toLowerCase();   // language tag
+        else                      code = s.toUpperCase();   // Base36 situation code
+    }
+    return { lang: lang, code: code };
+}
+
 (function () {
-    var done = false, tries = 0;
+    var doneCode = false, tries = 0;
     function apply() {
-        if (done) return;
-        var h = (location.hash || "").replace(/^#/, "").replace(/[^0-9A-Za-z]/g, "").toUpperCase();
-        if (!h) { done = true; return; }              // nothing to load
-        try {
-            var r = cdy.evalcs('decodeSituation("' + h + '")');
-            if (r && r.value && r.value.real === 1) { done = true; return; }
-        } catch (e) { /* interpreter not ready yet */ }
-        if (tries++ < 120) setTimeout(apply, 100);
+        var h = appReadHash(), ready = false;
+        try { cdy.evalcs('lang="' + (h.lang === "en" ? "en" : "de") + '"'); ready = true; }
+        catch (e) { /* interpreter not ready yet */ }
+        if (ready && h.code && !doneCode) {
+            try {
+                var r = cdy.evalcs('decodeSituation("' + h.code + '")');
+                if (r && r.value && r.value.real === 1) doneCode = true;
+            } catch (e) { }
+        }
+        var done = ready && (doneCode || !h.code);
+        if (!done && tries++ < 120) setTimeout(apply, 100);
     }
     setTimeout(apply, 150);
-    // Pasting a new #code into the address bar changes the hash without a
-    // full reload — apply it live too.
-    window.addEventListener("hashchange", function () { done = false; tries = 0; apply(); });
+    // React live when the hash is edited (language and/or code). A code change
+    // moves the geometry and redraws immediately; a pure language change takes
+    // effect on the next redraw (e.g. the next interaction). The language is
+    // normally chosen at load time via the embed URL, so this is fine.
+    window.addEventListener("hashchange", function () { doneCode = false; tries = 0; apply(); });
 })();
 
 // ===========================================================
@@ -1306,6 +1358,12 @@ var cdy = CindyJS({
   var TOL_FLOOR     = 0.3;   // absoluter Sockel (greift bei a·b ≈ 0)
   var DEBOUNCE_MS   = 300;   // Verzögerung gegen Flackern beim Tippen
 
+  // Panel labels per language (driven by the #en hash, like the rest of the UI).
+  var PANEL_STR = {
+    de: { sign: "Vorzeichen", exact: "passt genau", ok: "passt ungefähr", bad: "passt nicht" },
+    en: { sign: "Sign",       exact: "exact",       ok: "about right",    bad: "too far"     }
+  };
+
   function start() {
     var panel = document.createElement("div");
     panel.id = "resultPanel";
@@ -1332,6 +1390,12 @@ var cdy = CindyJS({
       return evalReal("(A.xy.x-O.xy.x)*(B.xy.x-O.xy.x)+(A.xy.y-O.xy.y)*(B.xy.y-O.xy.y)");
     }
     function isEdit() { return evalReal("if(editmode,1,0)") === 1; }
+    // Current UI language — read from CindyScript so it follows BOTH the URL
+    // hash (set at load) and the in-applet EN/DE toggle.
+    function curLang() {
+      try { if (cdy.evalcs("lang").value === "en") return "en"; } catch (e) { }
+      return "de";
+    }
 
     function chip(el, text, cls) { el.textContent = text; el.className = cls; }
 
@@ -1343,12 +1407,13 @@ var cdy = CindyJS({
       if (T === null) return;                                  // interpreter not ready
       if (!isFinite(S)) { chip(elSign, "", ""); chip(elErr, "", ""); return; }
       var absT = Math.abs(T);
+      var STR  = PANEL_STR[curLang()] || PANEL_STR.de;
 
       // Vorzeichen-Urteil zuerst (neutral bei a·b ≈ 0 oder noch unklarer Eingabe).
       var signBad = false;
-      if      (absT <= TOL_FLOOR || Math.abs(S) < 1e-9) chip(elSign, "Vorzeichen —", "rp-neutral");
-      else if ((S >= 0) === (T >= 0))                   chip(elSign, "Vorzeichen ✓", "rp-good");
-      else { chip(elSign, "Vorzeichen ✗", "rp-bad"); signBad = true; }
+      if      (absT <= TOL_FLOOR || Math.abs(S) < 1e-9) chip(elSign, STR.sign + " —", "rp-neutral");
+      else if ((S >= 0) === (T >= 0))                   chip(elSign, STR.sign + " ✓", "rp-good");
+      else { chip(elSign, STR.sign + " ✗", "rp-bad"); signBad = true; }
 
       // Bei falschem Vorzeichen das "passt …" ganz ausblenden.
       if (signBad) { chip(elErr, "", ""); return; }
@@ -1357,9 +1422,9 @@ var cdy = CindyJS({
       var m         = Math.abs(Math.abs(S) - absT);
       var exactBand = TOL_EXACT_ABS;
       var okBand    = Math.max(TOL_FLOOR, absT * TOL_OK_PCT / 100);
-      if      (m <= exactBand) chip(elErr, "passt genau",    "rp-good");
-      else if (m <= okBand)    chip(elErr, "passt ungefähr", "rp-good");   // Regelfall beim Messen → grün
-      else                     chip(elErr, "passt nicht",    "rp-bad");
+      if      (m <= exactBand) chip(elErr, STR.exact, "rp-good");
+      else if (m <= okBand)    chip(elErr, STR.ok,    "rp-good");   // Regelfall beim Messen → grün
+      else                     chip(elErr, STR.bad,   "rp-bad");
     }
 
     // Sanitise to digits / comma / point / a single leading minus, then
@@ -1376,7 +1441,7 @@ var cdy = CindyJS({
 
     // Show the panel only in display mode; re-evaluate when the situation
     // (a·b) changes — new random pose, dragged vectors, or a #permalink.
-    var lastT = null, lastVisible = null;
+    var lastT = null, lastVisible = null, lastLang = null;
     setInterval(function () {
       var ready   = trueValue() !== null;
       var visible = ready && !isEdit();
@@ -1385,10 +1450,14 @@ var cdy = CindyJS({
         lastVisible = visible;
       }
       if (visible) {
-        var T = trueValue();
-        if (T !== lastT) { lastT = T; if (input.value.trim() !== "") render(); }
+        var T = trueValue(), lg = curLang();
+        if ((T !== lastT || lg !== lastLang) && input.value.trim() !== "") render();
+        lastT = T;  lastLang = lg;
       }
     }, 200);
+
+    // Re-render the verdict labels when the language is switched live (#en/#de).
+    window.addEventListener("hashchange", function () { if (input.value.trim() !== "") render(); });
   }
 
   if (document.readyState === "loading")

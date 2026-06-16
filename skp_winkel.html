@@ -796,7 +796,7 @@ drawSidebar() := (
   if(!isPortrait,
     pad = 14;
     slAngS = sb(w/2, 3 * btnH + 2 * btnPad + 2 * btnGap + 40);
-    slAngE = sb(w/2, h - pad);
+    slAngE = sb(w/2, h - pad - 40);   // shortened so the max label clears the language toggle
   ,
     pad = 55;
     slAngS = sb(pad,     h - 46);
@@ -862,12 +862,12 @@ drawSidebar() := (
 
   // Random-position button (bottom).
   fillpoly([[bL, rcB], [bR, rcB], [bR, rcT], [bL, rcT]], color -> petrol10);
-  drawtext([(bL + bR) / 2, (rcB + rcT) / 2], "Zufällige Position",
+  drawtext([(bL + bR) / 2, (rcB + rcT) / 2], L("Zufällige Position", "Random position"),
            align -> "center", size -> fontScale * 16, color -> petrol, yoffset -> -fontScale * 16 * 0.27);
   btnRandL = bL; btnRandR = bR; btnRandB = rcB; btnRandT = rcT;
 
   // Half-/full-circle toggle (above the random button), darker when on.
-  vkTxt = "Vollkreis: " + if(fullCircle, "an", "aus");
+  vkTxt = L("Vollkreis: ", "Full circle: ") + if(fullCircle, L("an", "on"), L("aus", "off"));
   fillpoly([[bL, vkB], [bR, vkB], [bR, vkT], [bL, vkT]],
            color -> if(fullCircle, petrol25, petrol10));
   drawtext([(bL + bR) / 2, (vkB + vkT) / 2], vkTxt,
@@ -875,7 +875,7 @@ drawSidebar() := (
   vcL = bL; vcR = bR; vcB = vkB; vcT = vkT;
 
   // Show-calculation toggle (top of the stack), darker when on.
-  bcTxt = "Rechnung: " + if(showCalc, "an", "aus");
+  bcTxt = L("Rechnung: ", "Calculation: ") + if(showCalc, L("an", "on"), L("aus", "off"));
   fillpoly([[bL, bcB], [bR, bcB], [bR, bcT], [bL, bcT]],
            color -> if(showCalc, petrol25, petrol10));
   drawtext([(bL + bR) / 2, (bcB + bcT) / 2], bcTxt,
@@ -964,6 +964,26 @@ showCalc      = false;   // default: explicit a·b computation hidden
 mouseDownFlag = false;   // tracked via csmousedown / csmouseup
 draggingB     = false;   // true while B is grabbed in display mode
 
+// ---- Bilingual UI (DE/EN) -------------------------------------
+// lang is set at load from the URL hash (#en) by JS and toggled in-applet
+// by the EN/DE chip (drawLangToggle, left of the cog). L() returns the
+// matching variant for any bilingual string.
+lang  = "de";
+L(de, en) := if(lang == "en", en, de);
+langL = 0;  langR = 0;  langB = 0;  langT = 0;
+
+drawLangToggle() := (
+  regional(sr, w, h, rr, ll, tt, bb);
+  sr = screenresolution();
+  w  = 38 / sr;  h = 26 / sr;
+  rr = axCogLeft - 12 / sr;  ll = rr - w;          // sit just left of the cog
+  tt = axCogCy + h / 2;      bb = axCogCy - h / 2;
+  langL = ll;  langR = rr;  langB = bb;  langT = tt;
+  fillpoly([[ll, bb], [rr, bb], [rr, tt], [ll, tt]], color -> [0.90, 0.90, 0.90]);
+  drawtext([(ll + rr) / 2, (bb + tt) / 2], if(lang == "en", "DE", "EN"),
+           align -> "center", size -> fontScale * 14, color -> colorChrome, yoffset -> -fontScale * 14 * 0.27);
+);
+
 randomStart();
 
 resetclock();
@@ -994,6 +1014,11 @@ if(!editmode,
      =========================================================== -->
 <script id="csdraw" type="text/x-cindyscript">
 
+// Localised title + credits (drawn by the chrome below); react live to #en.
+appletTitle        = L("Skalarprodukt und Winkel", "Scalar Product and Angle");
+appletAffiliations = L("QuaMath (DZLM + IPN, gef. v. KMK) | LiAnMU | Universität Paderborn",
+                       "QuaMath (DZLM + IPN, funded by KMK) | LiAnMU | Paderborn University");
+
 // 1) Layout + anchors. sidebarVisible is auto-synced from editmode
 //    because sidebarFollowsEditmode is true (the default).
 platformBeginFrame();
@@ -1010,8 +1035,10 @@ slAngP.visible = editmode;
 // 3) Status / hint messages.
 if(editmode,
   setStatus(
-    ["SITUATION BEARBEITEN: Du kannst jetzt",
-     "den Betrag $|\vec{b}|$ und den Endpunkt von $\vec{a}$ anpassen."],
+    L(["SITUATION BEARBEITEN: Du kannst jetzt",
+       "den Betrag $|\vec{b}|$ und den Endpunkt von $\vec{a}$ anpassen."],
+      ["EDIT THE SITUATION: you can now adjust",
+       "the magnitude $|\vec{b}|$ and the tip of $\vec{a}$."]),
     "alert");
 ,
   clearStatus();
@@ -1111,7 +1138,7 @@ drawLabel(axContentLeft, magBase,
 // light petrol box just above the footer. In ADDITION to the a·b readout
 // at the vector tip, not a replacement — and shows the identical value.
 if(showCalc & !editmode,
-  drawCenteredBox(tCalc, "Rechnung", fontScale * 22, fontScale * 18,
+  drawCenteredBox(tCalc, L("Rechnung", "Calculation"), fontScale * 22, fontScale * 18,
                   petrol5, petrol, [0, 0, 0], petrol,
                   axContentBottom + 6 / screenresolution());
 );
@@ -1119,6 +1146,7 @@ if(showCalc & !editmode,
 // 7) Chrome on top.
 drawTitle();
 drawCog();
+drawLangToggle();
 drawUnit();
 drawStatusOrCredits();
 
@@ -1149,6 +1177,11 @@ if(!editmode & |mouse() - B| * screenresolution() < 40, draggingB = true);
 if(mouse().x > axCogLeft & mouse().x < axCogRight &
    mouse().y > axCogBot  & mouse().y < axCogTop,
   editmode = !editmode;
+);
+// Language toggle (left of the cog) — flip between German and English.
+if(mouse().x > langL & mouse().x < langR &
+   mouse().y > langB & mouse().y < langT,
+  lang = if(lang == "en", "de", "en");
 );
 if(editmode &
    mouse().x > btnRandL & mouse().x < btnRandR &
@@ -1227,6 +1260,27 @@ var cdy = CindyJS({
     use: ["katex"],
     cinderella: {build: 2124, version: [3, 0, 2124]}
 });
+
+// ===========================================================
+// UI language from the URL hash (#en / #de). Whitelisted to [0-9A-Za-z],
+// so it can't inject script. The in-applet EN/DE toggle switches it too.
+// ===========================================================
+function appReadHash() {
+    var segs = (location.hash || "").replace(/^#/, "").split(/[^0-9A-Za-z]+/);
+    var lang = "de", i, s;
+    for (i = 0; i < segs.length; i++) { s = segs[i]; if (/^(de|en)$/i.test(s)) lang = s.toLowerCase(); }
+    return { lang: lang };
+}
+(function () {
+    var done = false, tries = 0;
+    function apply() {
+        try { cdy.evalcs('lang="' + (appReadHash().lang === "en" ? "en" : "de") + '"'); done = true; }
+        catch (e) { /* interpreter not ready yet */ }
+        if (!done && tries++ < 120) setTimeout(apply, 100);
+    }
+    setTimeout(apply, 150);
+    window.addEventListener("hashchange", function () { done = false; tries = 0; apply(); });
+})();
 
 // ===========================================================
 // Responsive viewport: keep the grid-cell size identical in
